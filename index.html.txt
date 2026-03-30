@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Seasonal Calendar — 3D</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{height:100vh;height:100dvh;background:#FEF6EE;overflow:hidden;font-family:'Nunito',sans-serif;user-select:none;-webkit-user-select:none}
+  #ui-top{position:fixed;top:0;left:0;right:0;z-index:10;display:flex;flex-direction:column;align-items:center;padding:10px 10px 0;pointer-events:none}
+  #ui-top>*{pointer-events:auto}
+  h1{font-size:clamp(20px,4.5vw,36px);font-weight:900;color:#2D2A26;line-height:1;letter-spacing:-.02em}
+  .sub{font-size:clamp(9px,1.6vw,12px);color:#B8A692;font-weight:700;margin-top:2px}
+  .brow{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;justify-content:center}
+  .b{border:none;padding:5px 12px;border-radius:99px;cursor:pointer;font-size:clamp(10px,1.5vw,12px);font-family:inherit;font-weight:800;outline:none;-webkit-tap-highlight-color:transparent}
+  #ui-bot{position:fixed;bottom:0;left:0;right:0;z-index:10;display:flex;flex-direction:column;align-items:center;padding:0 10px 10px;pointer-events:none;gap:5px}
+  #ui-bot>*{pointer-events:auto}
+  .info{display:flex;gap:8px;align-items:center;background:rgba(254,246,238,.93);border-radius:99px;padding:5px 14px;backdrop-filter:blur(6px);transition:all .3s ease}
+  .info-d{font-size:clamp(13px,2.2vw,18px);font-weight:900;color:#2D2A26}
+  .info-l{font-size:9px;font-weight:800;color:#B8A692;letter-spacing:.1em}
+  .info-r{font-size:10px;font-weight:700;color:#E89B6C;cursor:pointer;border:none;background:none;font-family:inherit}
+  .vrow{display:flex;gap:4px}
+  .vb{border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#7A6E5E;padding:4px 10px;border-radius:99px;cursor:pointer;font-size:9px;font-family:inherit;font-weight:800;outline:none}
+  .vb.on{background:#2D2A26;color:#FEF6EE;border-color:#2D2A26}
+  .leg{display:flex;align-items:center;gap:2px;padding:4px 10px;background:#F5EBE0;border-radius:99px}
+  .leg span{color:#B8A692;font-size:8px;font-weight:800}
+  .lsw{height:6px;border-radius:99px}
+  .yrow{display:flex;gap:3px;margin-top:4px;overflow-x:auto;max-width:90vw;padding:2px 0;scrollbar-width:none;-ms-overflow-style:none}
+  .yrow::-webkit-scrollbar{display:none}
+  .yb{border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#7A6E5E;padding:3px 8px;border-radius:99px;cursor:pointer;font-size:9px;font-family:inherit;font-weight:800;outline:none;white-space:nowrap;flex-shrink:0}
+  .yb.on{background:#2D2A26;color:#FEF6EE;border-color:#2D2A26}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+</style>
+</head>
+<body>
+<div id="ui-top">
+  <h1>Seasons</h1>
+  <p class="sub" id="sub-hint">orbit to explore · tap center to move hand · double-tap for detail</p>
+  <div class="brow" id="btns"></div>
+  <div class="yrow" id="yrow"></div>
+</div>
+<canvas id="c"></canvas>
+<div id="ui-bot">
+  <div class="info"><div><div class="info-l" id="il">TODAY</div><div class="info-d" id="id"></div></div><button class="info-r" id="ir" style="display:none">← today</button></div>
+  <div class="vrow" id="vr"></div>
+  <div class="leg" id="lg"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+
+var SEASONS=[
+  {name:"Winter",accent:"#8BB0C9",pill:"#D6E6F0"},
+  {name:"Spring",accent:"#8CB87A",pill:"#D9ECCC"},
+  {name:"Summer",accent:"#E89B6C",pill:"#FAE0CC"},
+  {name:"Fall",accent:"#C98B5F",pill:"#F0D8BF"}
+];
+var MONTHS=[
+  {a:"Dec",d:31,t:9},{a:"Jan",d:31,t:8},{a:"Feb",d:28,t:9},
+  {a:"Mar",d:31,t:13},{a:"Apr",d:30,t:16},{a:"May",d:31,t:19},
+  {a:"Jun",d:30,t:26},{a:"Jul",d:31,t:29},{a:"Aug",d:31,t:28},
+  {a:"Sep",d:30,t:23},{a:"Oct",d:31,t:17},{a:"Nov",d:30,t:12}
+];
+var MI={12:0,1:1,2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9,10:10,11:11};
+var td=new Date();
+var mN=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function lerp(a,b,t){return a+(b-a)*t}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+
+// Angle system — Winter center at south (PI/2)
+var WSTART=Math.PI/4;
+var DEC1=WSTART-(20/31)*30*Math.PI/180;
+
+function dateAng(mo,dy){return DEC1+(MI[mo]*30+((dy-1)/MONTHS[MI[mo]].d)*30)*Math.PI/180}
+function angDate(a){var dg=((a-DEC1)*180/Math.PI%360+360)%360;var mf=dg/30,mi=Math.floor(mf)%12,f=mf-mi;var m=MONTHS[mi];return{month:m.a,day:clamp(Math.round(f*m.d)+1,1,m.d)}}
+
+var SB=[dateAng(12,21),dateAng(3,21),dateAng(6,21),dateAng(9,21)];
+function sMid(i){var a=SB[i],b=SB[(i+1)%4];var m=(a+b)/2;if(b<a)m=(a+b+Math.PI*2)/2;return m}
+var SM=[sMid(0),sMid(1),sMid(2),sMid(3)];
+
+// Temperature color
+var TS=[{t:-1,r:170,g:195,b:218},{t:3,r:155,g:188,b:215},{t:6,r:145,g:182,b:210},{t:10,r:150,g:192,b:175},{t:14,r:162,g:200,b:148},{t:18,r:185,g:208,b:128},{t:22,r:220,g:200,b:120},{t:26,r:235,g:185,b:112},{t:30,r:232,g:155,b:108},{t:35,r:218,g:125,b:95},{t:40,r:200,g:80,b:70}];
+function tRGB(t){
+  if(t<=TS[0].t)return[TS[0].r/255,TS[0].g/255,TS[0].b/255];
+  var last=TS[TS.length-1];if(t>=last.t)return[last.r/255,last.g/255,last.b/255];
+  for(var i=0;i<TS.length-1;i++){if(t>=TS[i].t&&t<=TS[i+1].t){var f=(t-TS[i].t)/(TS[i+1].t-TS[i].t);return[lerp(TS[i].r,TS[i+1].r,f)/255,lerp(TS[i].g,TS[i+1].g,f)/255,lerp(TS[i].b,TS[i+1].b,f)/255]}}
+  return[.78,.78,.78]
+}
+function tHex(t){var c=tRGB(t);return'rgb('+Math.round(c[0]*255)+','+Math.round(c[1]*255)+','+Math.round(c[2]*255)+')'}
+function colorAtAng(ang){
+  var dg=((ang-DEC1)*180/Math.PI%360+360)%360;
+  var mf=dg/30,mi=Math.floor(mf)%12,ni=(mi+1)%12,f=mf-mi;
+  return tRGB(lerp(MONTHS[mi].t,MONTHS[ni].t,f));
+}
+
+// Year progress
+var jan1A=dateAng(1,1),todA=dateAng(td.getMonth()+1,td.getDate());
+function isInPast(ang){
+  if(!isCurrentYear())return false;
+  var a=((ang%(Math.PI*2))+(Math.PI*2))%(Math.PI*2);
+  var s=((jan1A%(Math.PI*2))+(Math.PI*2))%(Math.PI*2);
+  var e=((todA%(Math.PI*2))+(Math.PI*2))%(Math.PI*2);
+  if(e>=s)return a>=s&&a<=e;
+  return a>=s||a<=e;
+}
+var BG=[254/255,246/255,238/255];
+
+// THREE
+var cv=document.getElementById("c");
+var R=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+R.setPixelRatio(Math.min(window.devicePixelRatio,2));
+R.setClearColor(0xFEF6EE,1);
+var Sc=new THREE.Scene();
+var isDesk=window.innerWidth>=900;
+var cam=new THREE.PerspectiveCamera(isDesk?32:40,1,.1,100);
+
+Sc.add(new THREE.AmbientLight(0xffffff,.85));
+var dl=new THREE.DirectionalLight(0xffffff,.4);dl.position.set(2,10,3);Sc.add(dl);
+
+// ═══════════════ DISC GEOMETRY ═══════════════
+// Concentric ring structure: hub → color ring → ticks → labels → outer border
+var HUB_R=0.45,IR=0.55,OR=1.35,DH=.08,MR=(OR+IR)/2;
+var TICK_IR=1.40,TICK_OR=1.55,LABEL_R=1.72,OUTER_R=1.88;
+var SEGS=512;
+
+function buildRing(yOff,normalUp){
+  var geo=new THREE.BufferGeometry();
+  var verts=[],cols=[],norms=[],idx=[];
+  var RS=4;
+  for(var ai=0;ai<=SEGS;ai++){
+    var ang=(ai/SEGS)*Math.PI*2;
+    var c=colorAtAng(ang);
+    var past=isInPast(ang);
+    for(var ri=0;ri<=RS;ri++){
+      var rad=lerp(IR,OR,ri/RS);
+      verts.push(Math.cos(ang)*rad, yOff, Math.sin(ang)*rad);
+      var r=c[0],g=c[1],b=c[2];
+      if(past){r=lerp(r,BG[0],.4);g=lerp(g,BG[1],.4);b=lerp(b,BG[2],.4)}
+      cols.push(r,g,b);
+      norms.push(0,normalUp?1:-1,0);
+    }
+  }
+  for(var ai=0;ai<SEGS;ai++){
+    for(var ri=0;ri<RS;ri++){
+      var i0=ai*(RS+1)+ri,i1=i0+1,i2=(ai+1)*(RS+1)+ri,i3=i2+1;
+      if(normalUp){idx.push(i0,i2,i1,i1,i2,i3)}
+      else{idx.push(i0,i1,i2,i1,i3,i2)}
+    }
+  }
+  geo.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
+  geo.setAttribute("color",new THREE.Float32BufferAttribute(cols,3));
+  geo.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
+  geo.setIndex(idx);
+  return geo;
+}
+
+var ringMat=new THREE.MeshBasicMaterial({vertexColors:true});
+var topMesh=new THREE.Mesh(buildRing(DH/2,true),ringMat);
+Sc.add(topMesh);
+var botMesh=new THREE.Mesh(buildRing(-DH/2,false),ringMat.clone());
+Sc.add(botMesh);
+
+// Edges
+function buildEdge(radius,faceOut){
+  var geo=new THREE.BufferGeometry();
+  var v=[],c=[],n=[],idx=[];
+  for(var ai=0;ai<=SEGS;ai++){
+    var ang=(ai/SEGS)*Math.PI*2;
+    var cl=colorAtAng(ang);var past=isInPast(ang);
+    var nx=faceOut?Math.cos(ang):-Math.cos(ang),nz=faceOut?Math.sin(ang):-Math.sin(ang);
+    for(var yi=0;yi<=1;yi++){
+      var y=yi===0?DH/2:-DH/2;
+      v.push(Math.cos(ang)*radius,y,Math.sin(ang)*radius);
+      var r=cl[0]*.85,g=cl[1]*.85,b=cl[2]*.85;
+      if(past){r=lerp(r,BG[0],.4);g=lerp(g,BG[1],.4);b=lerp(b,BG[2],.4)}
+      c.push(r,g,b);n.push(nx,0,nz);
+    }
+  }
+  for(var ai=0;ai<SEGS;ai++){
+    var i0=ai*2,i1=i0+1,i2=(ai+1)*2,i3=i2+1;
+    if(faceOut){idx.push(i0,i1,i2,i1,i3,i2)}
+    else{idx.push(i0,i2,i1,i1,i2,i3)}
+  }
+  geo.setAttribute("position",new THREE.Float32BufferAttribute(v,3));
+  geo.setAttribute("color",new THREE.Float32BufferAttribute(c,3));
+  geo.setAttribute("normal",new THREE.Float32BufferAttribute(n,3));
+  geo.setIndex(idx);return geo;
+}
+var outerEdgeMesh=new THREE.Mesh(buildEdge(OR,true),new THREE.MeshBasicMaterial({vertexColors:true}));
+Sc.add(outerEdgeMesh);
+var innerEdgeMesh=new THREE.Mesh(buildEdge(IR,false),new THREE.MeshBasicMaterial({vertexColors:true}));
+Sc.add(innerEdgeMesh);
+
+// ═══════════════ HUB & OUTER BORDER ═══════════════
+// Dark center hub
+var hubGeo=new THREE.CircleGeometry(HUB_R,64);
+hubGeo.rotateX(-Math.PI/2);
+var hubMesh=new THREE.Mesh(hubGeo,new THREE.MeshBasicMaterial({color:0x2D2A26}));
+hubMesh.position.y=DH/2+.005;
+Sc.add(hubMesh);
+
+// Drop shadow under disc
+var shadowGeo=new THREE.CircleGeometry(OUTER_R+.1,64);
+shadowGeo.rotateX(-Math.PI/2);
+var shadowMesh=new THREE.Mesh(shadowGeo,new THREE.MeshBasicMaterial({color:0x2D2A26,transparent:true,opacity:.06}));
+shadowMesh.position.y=-DH/2-.01;
+Sc.add(shadowMesh);
+
+// Outer thin border ring
+var borderGeo=new THREE.RingGeometry(OUTER_R-.02,OUTER_R,64);
+borderGeo.rotateX(-Math.PI/2);
+var borderMesh=new THREE.Mesh(borderGeo,new THREE.MeshBasicMaterial({color:0x2D2A26,transparent:true,opacity:.12}));
+borderMesh.position.y=DH/2+.004;
+Sc.add(borderMesh);
+
+// ═══════════════ TICK MARKS ═══════════════
+var tickGroup=new THREE.Group();Sc.add(tickGroup);
+function buildTicks(){
+  while(tickGroup.children.length){var c=tickGroup.children[0];if(c.geometry)c.geometry.dispose();if(c.material)c.material.dispose();tickGroup.remove(c)}
+  var y=DH/2+.004;
+  var verts=[],colors=[];
+  var monthDays=[31,28,31,30,31,30,31,31,30,31,30,31];
+  var calMonths=[12,1,2,3,4,5,6,7,8,9,10,11];
+  for(var mi=0;mi<12;mi++){
+    var mo=calMonths[mi];
+    for(var d=1;d<=monthDays[mi];d++){
+      var ang=dateAng(mo,d);
+      var isMonthStart=(d===1);
+      var isSeason=false;
+      for(var si=0;si<SB.length;si++){if(Math.abs(ang-SB[si])<0.02){isSeason=true;break}}
+      var len=isSeason?.12:isMonthStart?.08:.03;
+      var op=isSeason?.5:isMonthStart?.3:.12;
+      var past=isInPast(ang);
+      var r0=TICK_IR,r1=TICK_IR+len;
+      verts.push(Math.cos(ang)*r0,y,Math.sin(ang)*r0);
+      verts.push(Math.cos(ang)*r1,y,Math.sin(ang)*r1);
+      var cr=past?.7:.18,cg=past?.7:.16,cb=past?.7:.15;
+      colors.push(cr*op,cg*op,cb*op);
+      colors.push(cr*op,cg*op,cb*op);
+    }
+  }
+  var geo=new THREE.BufferGeometry();
+  geo.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
+  geo.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));
+  var mat=new THREE.LineBasicMaterial({vertexColors:true,transparent:true});
+  tickGroup.add(new THREE.LineSegments(geo,mat));
+}
+buildTicks();
+
+// ═══════════════ DIVIDERS & SUNBURST ═══════════════
+var dG=new THREE.Group();Sc.add(dG);
+function buildDividers(){
+  while(dG.children.length){var c=dG.children[0];if(c.geometry)c.geometry.dispose();if(c.material)c.material.dispose();dG.remove(c)}
+  var y=DH/2+.005;
+  // Sunburst: 12 thin radiating lines from hub to color ring
+  for(var i=0;i<12;i++){
+    var a=DEC1+i*30*Math.PI/180;
+    dG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a)*HUB_R,y,Math.sin(a)*HUB_R),new THREE.Vector3(Math.cos(a)*IR,y,Math.sin(a)*IR)]),new THREE.LineBasicMaterial({color:0x2D2A26,transparent:true,opacity:.08})));
+  }
+  // Season boundaries on color ring
+  SB.forEach(function(a){dG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a)*(IR+.02),y,Math.sin(a)*(IR+.02)),new THREE.Vector3(Math.cos(a)*(OR-.02),y,Math.sin(a)*(OR-.02))]),new THREE.LineBasicMaterial({color:0x2D2A26,transparent:true,opacity:.25})))});
+  // Today/Jan1 markers (current year only)
+  if(isCurrentYear()){
+    var cr=IR-.06,co=TICK_OR+.03;
+    [jan1A,todA].forEach(function(a){dG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a)*cr,y+.002,Math.sin(a)*cr),new THREE.Vector3(Math.cos(a)*co,y+.002,Math.sin(a)*co)]),new THREE.LineBasicMaterial({color:0x2D2A26,transparent:true,opacity:.4})))});
+  }
+}
+buildDividers();
+
+// Rebuild ring geometry (for year changes)
+function rebuildRing(){
+  topMesh.geometry.dispose();topMesh.geometry=buildRing(DH/2,true);
+  botMesh.geometry.dispose();botMesh.geometry=buildRing(-DH/2,false);
+  outerEdgeMesh.geometry.dispose();outerEdgeMesh.geometry=buildEdge(OR,true);
+  innerEdgeMesh.geometry.dispose();innerEdgeMesh.geometry=buildEdge(IR,false);
+  buildTicks();buildDividers();
+}
+
+// ═══════════════ HAND ═══════════════
+var handOff=null;
+function hAng(){return handOff!==null?handOff:dateAng(td.getMonth()+1,td.getDate())}
+var hG=new THREE.Group();Sc.add(hG);
+var hL=TICK_OR+.05;
+// Thin elegant line (PlaneGeometry baked flat on XZ plane)
+var handW=.012,handMat=new THREE.MeshBasicMaterial({color:0xE89B6C,transparent:true,opacity:.7,side:THREE.DoubleSide});
+var shaftGeo=new THREE.PlaneGeometry(hL,handW);shaftGeo.rotateX(-Math.PI/2);
+var shaft=new THREE.Mesh(shaftGeo,handMat);
+hG.add(shaft);
+// Crosshair at endpoint (+)
+var chSize=.05,chW=.006;
+var chMat=new THREE.MeshBasicMaterial({color:0xE89B6C,transparent:true,opacity:.8,side:THREE.DoubleSide});
+var chHGeo=new THREE.PlaneGeometry(chSize,chW);chHGeo.rotateX(-Math.PI/2);
+var chH=new THREE.Mesh(chHGeo,chMat);hG.add(chH);
+var chVGeo=new THREE.PlaneGeometry(chW,chSize);chVGeo.rotateX(-Math.PI/2);
+var chV=new THREE.Mesh(chVGeo,chMat.clone());hG.add(chV);
+// Small flat center dot
+var ctrGeo=new THREE.CircleGeometry(.035,24);ctrGeo.rotateX(-Math.PI/2);
+var ctr=new THREE.Mesh(ctrGeo,new THREE.MeshBasicMaterial({color:0xE89B6C}));hG.add(ctr);
+// Keep tip reference for drag detection
+var tip={position:new THREE.Vector3()};
+function updH(){
+  var a=hAng(),y=DH/2+.015,tx=Math.cos(a)*hL,tz=Math.sin(a)*hL;
+  shaft.position.set(tx/2,y,tz/2);shaft.rotation.y=-a;
+  chH.position.set(tx,y,tz);chH.rotation.y=-a;
+  chV.position.set(tx,y,tz);chV.rotation.y=-a;
+  tip.position.set(tx,y,tz);ctr.position.y=y;
+}
+updH();
+
+// LABELS
+var lG=new THREE.Group();Sc.add(lG);
+function mkS(txt,fs,col){
+  var cv2=document.createElement("canvas"),cx=cv2.getContext("2d");
+  var fn="900 "+fs+"px Nunito,sans-serif";cx.font=fn;
+  var w=Math.ceil(cx.measureText(txt).width)+6,h=fs*1.3;
+  cv2.width=w*2;cv2.height=h*2;cx.scale(2,2);cx.font=fn;cx.fillStyle=col;cx.textAlign="center";cx.textBaseline="middle";cx.fillText(txt,w/2,h/2);
+  var tex=new THREE.CanvasTexture(cv2);tex.minFilter=THREE.LinearFilter;
+  var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
+  sp.scale.set(w/120,h/120,1);return sp;
+}
+MONTHS.forEach(function(m,i){var a=DEC1+(i*30+15)*Math.PI/180;var sp=mkS(m.a,18,"rgba(45,42,38,0.45)");sp.position.set(Math.cos(a)*LABEL_R,DH/2+.05,Math.sin(a)*LABEL_R);lG.add(sp)});
+SEASONS.forEach(function(s,i){var a=SM[i];var sp=mkS(s.name.toUpperCase(),14,"rgba(45,42,38,0.14)");sp.position.set(Math.cos(a)*(OUTER_R+.25),.02,Math.sin(a)*(OUTER_R+.25));lG.add(sp)});
+
+// CAMERA
+var CB=Math.PI/2;
+var defD=isDesk?10:14;
+var cT=CB,cP=.05,cD=defD,tT=CB,tP=.05,tD=defD;
+var orb=false,orbS={x:0,y:0},oTS=0,oPS=0,oCX=0,oCY=0,oPX=0,oPY=0,orbP=false;
+var pin=false,pSD=0,pDD=0;
+function updC(){
+  cT+=(tT-cT)*.1;cP+=(tP-cP)*.1;cD+=(tD-cD)*.1;
+  var p=clamp(cP,.01,Math.PI/2-.01);
+  cam.position.set(cD*Math.sin(p)*Math.cos(cT),cD*Math.cos(p),cD*Math.sin(p)*Math.sin(cT));
+  cam.lookAt(0,0,0);
+}
+
+var rP=new THREE.Plane(new THREE.Vector3(0,1,0),0);
+function wPt(px,py){
+  var r=cv.getBoundingClientRect();
+  var mx=((px-r.left)/r.width)*2-1;
+  var my=-((py-r.top)/r.height)*2+1;
+  var rc=new THREE.Raycaster();
+  rc.setFromCamera(new THREE.Vector2(mx,my),cam);
+  var pt=new THREE.Vector3();
+  if(rc.ray.intersectPlane(rP,pt))return pt;
+  return null;
+}
+
+// INTERACTION
+var ptrs=new Map(),dH=false,DZ=8,lastHA=null;
+var tapStart=null; // track tap for card clicks
+function normA(a){return((a%(Math.PI*2))+(Math.PI*2))%(Math.PI*2)}
+function moveH(nr){
+  var na=normA(nr);
+  handOff=nr;lastHA=na;updH();updI();
+}
+
+cv.addEventListener("pointerdown",function(e){
+  cv.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  tapStart={x:e.clientX,y:e.clientY,t:Date.now(),id:e.pointerId};
+  if(ptrs.size===1){
+    var pt=wPt(e.clientX,e.clientY);
+    if(pt){
+      var d=Math.sqrt(pt.x*pt.x+pt.z*pt.z);
+      var tp=tip.position;
+      var dt=Math.sqrt((pt.x-tp.x)*(pt.x-tp.x)+(pt.z-tp.z)*(pt.z-tp.z));
+      if(dt<.6||d<IR*.95){
+        dH=true;cv.style.cursor="grabbing";
+        var na=Math.atan2(pt.z,pt.x);
+        if(handOff===null){handOff=hAng();lastHA=normA(handOff)}
+        moveH(na);buildB();return;
+      }
+    }
+    orbP=true;orb=false;orbS={x:e.clientX,y:e.clientY};oTS=tT;oPS=tP;
+  }else if(ptrs.size===2){
+    orb=false;orbP=false;dH=false;pin=true;
+    var ps=Array.from(ptrs.values());
+    pSD=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y);pDD=tD;
+  }
+});
+
+cv.addEventListener("pointermove",function(e){
+  if(!ptrs.has(e.pointerId))return;
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(dH){var pt=wPt(e.clientX,e.clientY);if(pt)moveH(Math.atan2(pt.z,pt.x));return}
+  if(pin&&ptrs.size===2){var ps=Array.from(ptrs.values());tD=clamp(pDD*(pSD/Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y)),isDesk?4:5,25)}
+  else if(ptrs.size===1){
+    var dx=e.clientX-orbS.x,dy=e.clientY-orbS.y;
+    if(orbP&&!orb&&Math.hypot(dx,dy)>5){orb=true;orbP=false;orbS={x:e.clientX,y:e.clientY};oPS=tP;var c3=new THREE.Vector3(0,0,0);c3.project(cam);oCX=(c3.x+1)/2*cv.clientWidth;oCY=(-c3.y+1)/2*cv.clientHeight;oPX=e.clientX;oPY=e.clientY}
+    if(orb){var ppx=oPX-oCX,ppy=oPY-oCY,cpx=e.clientX-oCX,cpy=e.clientY-oCY;var cross=ppx*cpy-ppy*cpx,dot=ppx*cpx+ppy*cpy;var dAng=Math.atan2(cross,dot);tT-=dAng;tP=clamp(tP+(e.clientY-oPY)*.008,.01,Math.PI/2-.01);oPX=e.clientX;oPY=e.clientY}
+  }
+});
+
+cv.addEventListener("pointerup",function(e){
+  // Check for quick tap on card
+  if(tapStart&&tapStart.id===e.pointerId&&!dH&&!orb){
+    var dx=e.clientX-tapStart.x,dy=e.clientY-tapStart.y;
+    if(Math.hypot(dx,dy)<8&&Date.now()-tapStart.t<300){
+      var now=Date.now();
+      // Double-tap detection for detail view
+      if(now-lastTapTime<400&&Math.hypot(e.clientX-lastTapPos.x,e.clientY-lastTapPos.y)<30){
+        if(aV!==DETAIL_IDX){setV(DETAIL_IDX)}else{setV(0)}
+        lastTapTime=0;
+      }else{
+        lastTapTime=now;lastTapPos={x:e.clientX,y:e.clientY};
+        if(!checkDotClick(tapStart.x,tapStart.y)){
+          checkCardClick(tapStart.x,tapStart.y);
+        }
+      }
+    }
+  }
+  tapStart=null;
+  ptrs.delete(e.pointerId);
+  if(dH){dH=false;cv.style.cursor="";buildB()}
+  if(!ptrs.size){orb=false;pin=false;orbP=false}
+  if(ptrs.size<2)pin=false;
+});
+
+cv.addEventListener("pointercancel",function(e){
+  ptrs.delete(e.pointerId);
+  if(!ptrs.size){orb=false;pin=false;orbP=false;dH=false}
+});
+
+cv.addEventListener("wheel",function(e){tD=clamp(tD+e.deltaY*.004,isDesk?4:5,25);e.preventDefault()},{passive:false});
+
+// Ensure touch events don't scroll on mobile
+cv.style.touchAction="none";
+cv.addEventListener("touchstart",function(e){e.preventDefault()},{passive:false});
+cv.addEventListener("touchmove",function(e){e.preventDefault()},{passive:false});
+
+// VIEWS
+var VW=isDesk?[{n:"Plan",p:.05,t:CB,d:10},{n:"Angle",p:.5,t:CB-.35,d:9.5},{n:"Isometric",p:.6,t:CB-Math.PI/4,d:10},{n:"Low",p:1.1,t:CB-.25,d:8},{n:"Section",p:Math.PI/2-.06,t:CB,d:7},{n:"Detail",p:.05,t:CB,d:isDesk?4.5:6}]:[{n:"Plan",p:.05,t:CB,d:14},{n:"Angle",p:.5,t:CB-.35,d:13},{n:"Isometric",p:.6,t:CB-Math.PI/4,d:14},{n:"Low",p:1.1,t:CB-.25,d:11},{n:"Section",p:Math.PI/2-.06,t:CB,d:9},{n:"Detail",p:.05,t:CB,d:isDesk?4.5:6}];
+var DETAIL_IDX=VW.length-1;
+var aV=0,detailCenter=0;
+function setV(i){
+  aV=i;tP=VW[i].p;tD=VW[i].d;
+  if(i===DETAIL_IDX){
+    // Center on current hand position
+    var ha=hAng();
+    detailCenter=Math.floor(((ha-DEC1)*180/Math.PI)/30)%12;
+    tT=-ha+Math.PI;
+    // Shift disk center to far left of screen using view offset
+    var w=window.innerWidth,h=window.innerHeight;
+    cam.aspect=(w*2)/h;cam.setViewOffset(w*2,h,w,0,w,h);cam.updateProjectionMatrix();
+    buildDayDots(detailCenter);
+  }else{
+    tT=VW[i].t;clearDayDots();
+    // Restore normal centered view
+    var w=window.innerWidth,h=window.innerHeight;
+    cam.clearViewOffset();cam.aspect=w/h;cam.updateProjectionMatrix();
+  }
+  buildV();
+}
+function resetAll(){handOff=null;lastHA=null;if(!isCurrentYear()){selectedYear=td.getFullYear();rebuildRing();rebuildCards();buildY()}updH();updI();buildB();setV(0);tD=defD}
+
+function setYear(y){
+  if(y===selectedYear)return;
+  selectedYear=y;
+  if(!isCurrentYear()){handOff=dateAng(1,1);lastHA=normA(handOff)}else{handOff=null;lastHA=null}
+  rebuildRing();rebuildCards();updH();updI();buildB();buildY();
+}
+
+function buildY(){
+  var el=document.getElementById("yrow");el.innerHTML="";
+  for(var y=2015;y<=2026;y++){
+    var b=document.createElement("button");b.className="yb"+(y===selectedYear?" on":"");b.textContent=y;
+    (function(yr){b.addEventListener("click",function(){setYear(yr)})})(y);
+    el.appendChild(b);
+  }
+}
+
+function buildB(){
+  var el=document.getElementById("btns");el.innerHTML="";
+  var df=handOff===null;
+  var ab=document.createElement("button");ab.className="b";ab.textContent="Reset";
+  ab.style.background=df?"#2D2A26":"#F0E6D8";ab.style.color=df?"#FEF6EE":"#7A6E5E";
+  ab.addEventListener("click",resetAll);el.appendChild(ab);
+  SEASONS.forEach(function(s,i){
+    var b=document.createElement("button");b.className="b";b.textContent=s.name;
+    b.style.background=s.pill;b.style.color="#5A4D3B";
+    b.addEventListener("click",function(){tT=-SM[i]+Math.PI;if(tP<.3)tP=.5});
+    el.appendChild(b);
+  });
+}
+
+function buildV(){
+  var el=document.getElementById("vr");el.innerHTML="";
+  VW.forEach(function(v,i){
+    var b=document.createElement("button");b.className="vb"+(aV===i?" on":"");b.textContent=v.n;
+    b.addEventListener("click",function(){setV(i)});el.appendChild(b);
+  });
+}
+
+function updI(){
+  var isT=handOff===null&&isCurrentYear();
+  var dd=isT?{month:mN[td.getMonth()],day:td.getDate()}:angDate(hAng());
+  document.getElementById("il").textContent=isT?"TODAY":"SELECTED";
+  document.getElementById("id").textContent=isT?td.getDate()+" "+mN[td.getMonth()]+" "+td.getFullYear():dd.day+" "+dd.month+" "+selectedYear;
+  document.getElementById("ir").style.display=isT?"none":"block";
+}
+document.getElementById("ir").addEventListener("click",resetAll);
+
+var lg=document.getElementById("lg");
+var c1=document.createElement("span");c1.textContent="cold";c1.style.marginRight="3px";lg.appendChild(c1);
+for(var i=0;i<14;i++){var d=document.createElement("div");d.className="lsw";d.style.width="clamp(6px,1.5vw,10px)";d.style.background=tHex(-1+(i/13)*41);lg.appendChild(d)}
+var c2=document.createElement("span");c2.textContent="warm";c2.style.marginLeft="3px";lg.appendChild(c2);
+
+// ═══════════════ YEAR MANAGEMENT ═══════════════
+var selectedYear=td.getFullYear();
+function isCurrentYear(){return selectedYear===td.getFullYear()}
+
+// GOOGLE CALENDAR EVENTS
+var GCAL_EVENTS=[
+  {y:2026,m:1,d:2,t:"15:30",s:"Llamada ginecóloga",col:"#E89B6C"},
+  {y:2026,m:1,d:13,t:"09:10",s:"Cita Irene — C.S. Espronceda",col:"#F6BF26"},
+  {y:2026,m:1,d:15,t:"13:30",s:"Dentista",col:"#F6BF26"},
+  {y:2026,m:1,d:16,t:"",s:"Comida CyT",col:"#F6BF26",allDay:true},
+  {y:2026,m:1,d:19,t:"19:00",s:"Terapia",col:"#8BB0C9"},
+  {y:2026,m:1,d:26,t:"15:30",s:"Escribir a Beatriz",col:"#E89B6C"},
+  {y:2026,m:2,d:3,t:"19:00",s:"Terapia",col:"#8BB0C9"},
+  {y:2026,m:2,d:8,t:"14:30",s:"Reserva Tiflis Malasaña",col:"#E89B6C"},
+  {y:2026,m:2,d:9,t:"10:30",s:"Quien pagó por mi pan?",col:"#E89B6C"},
+  {y:2026,m:2,d:11,t:"10:30",s:"Matrícula ETSAV",col:"#D50000"},
+  {y:2026,m:2,d:16,t:"19:00",s:"Terapia",col:"#8BB0C9"},
+  {y:2026,m:2,d:27,t:"",s:"Adobe revisar suscripción",col:"#D50000",allDay:true},
+  {y:2026,m:3,d:1,t:"",s:"JRC TRAINEESHIPS!!",col:"#D50000",allDay:true},
+  {y:2026,m:3,d:2,t:"",s:"BCG Women's Boot Camp?",col:"#F6BF26",allDay:true},
+  {y:2026,m:3,d:10,t:"19:30",s:"Psiquiatra (online)",col:"#E4C441"},
+  {y:2026,m:3,d:16,t:"19:00",s:"Terapia",col:"#8BB0C9"},
+  {y:2026,m:3,d:17,t:"09:30",s:"Pedir vacaciones",col:"#D50000"},
+  {y:2026,m:3,d:18,t:"",s:"NORTON CANCELAR ANTIVIRUS",col:"#D50000",allDay:true},
+  {y:2026,m:3,d:28,t:"",s:"Adobe revisar suscripción",col:"#D50000",allDay:true},
+  {y:2026,m:3,d:29,t:"",s:"JDP CBRE?",col:"#D50000",allDay:true},
+  {y:2026,m:3,d:29,t:"19:08",s:"ALVIA Madrid → Santander",col:"#8E24AA"},
+  {y:2026,m:3,d:30,t:"",s:"Vacaciones?",col:"#E4C441",allDay:true},
+  {y:2026,m:3,d:30,t:"19:00",s:"Terapia",col:"#8BB0C9"},
+  {y:2026,m:3,d:30,t:"20:30",s:"Rosalía concierto LUX",col:"#7986CB"},
+  {y:2026,m:3,d:31,t:"",s:"Vacaciones?",col:"#E4C441",allDay:true},
+  {y:2026,m:4,d:1,t:"",s:"BCG Women's Boot Camp?",col:"#F6BF26",allDay:true},
+  {y:2026,m:4,d:1,t:"",s:"Vacaciones?",col:"#E4C441",allDay:true},
+  {y:2026,m:4,d:5,t:"19:00",s:"ALVIA Santander → Madrid",col:"#8E24AA"},
+  {y:2026,m:4,d:6,t:"",s:"Concurso ideas CIU Ayto Madrid?",col:"#D50000",allDay:true},
+  {y:2026,m:4,d:15,t:"",s:"Pago matrícula UPM 2º plazo",col:"#D50000",allDay:true},
+  {y:2026,m:8,d:25,t:"",s:"Happy birthday!",col:"#E89B6C",allDay:true},
+  {y:2026,m:9,d:8,t:"11:00",s:"Neurología Fund. Jiménez Díaz",col:"#8BB0C9"}
+];
+function getEventsForMonth(y,mo){return GCAL_EVENTS.filter(function(e){return e.y===y&&e.m===mo})}
+function getEventsForDay(y,mo,dy){return GCAL_EVENTS.filter(function(e){return e.y===y&&e.m===mo&&e.d===dy})}
+
+// MONTH CARDS — vertical planes at each month, visible when tilted
+var cardGroup=new THREE.Group();Sc.add(cardGroup);
+var CARD_H=isDesk?1.0:1.4, CARD_W=isDesk?(OR-IR)*.8:(OR-IR+.2);
+var cards=[];
+var REAL_MONTHS=[
+  {name:"January",cal:1,days:31},{name:"February",cal:2,days:28},
+  {name:"March",cal:3,days:31},{name:"April",cal:4,days:30},
+  {name:"May",cal:5,days:31},{name:"June",cal:6,days:30},
+  {name:"July",cal:7,days:31},{name:"August",cal:8,days:31},
+  {name:"September",cal:9,days:30},{name:"October",cal:10,days:31},
+  {name:"November",cal:11,days:30},{name:"December",cal:12,days:31}
+];
+// Map to our MONTHS order (Dec=0)
+var CARD_ORDER=[11,0,1,2,3,4,5,6,7,8,9,10]; // indices into REAL_MONTHS: Dec,Jan,...Nov
+
+function makeCardTexture(monthName,temp){
+  var cv2=document.createElement("canvas");
+  cv2.width=256;cv2.height=256;
+  var cx=cv2.getContext("2d");
+  // Background with rounded rect
+  cx.fillStyle="rgba(254,246,238,0.92)";
+  cx.beginPath();
+  cx.moveTo(12,0);cx.lineTo(244,0);cx.quadraticCurveTo(256,0,256,12);
+  cx.lineTo(256,244);cx.quadraticCurveTo(256,256,244,256);
+  cx.lineTo(12,256);cx.quadraticCurveTo(0,256,0,244);
+  cx.lineTo(0,12);cx.quadraticCurveTo(0,0,12,0);
+  cx.fill();
+  // Border
+  cx.strokeStyle="rgba(45,42,38,0.12)";cx.lineWidth=2;cx.stroke();
+  // Month name
+  var tFs=isDesk?28:36, tmpFs=isDesk?18:24, bFs=isDesk?13:16, hFs=isDesk?12:14, actFs=isDesk?14:18;
+  var nameY=isDesk?80:90, tmpY=isDesk?118:135, badgeY=isDesk?155:175, hintY=isDesk?180:206, actY=isDesk?170:190;
+  cx.fillStyle="#2D2A26";cx.font="900 "+tFs+"px Nunito,sans-serif";
+  cx.textAlign="center";cx.textBaseline="middle";
+  cx.fillText(monthName,128,nameY);
+  // Temperature
+  cx.fillStyle="#B8A692";cx.font="700 "+tmpFs+"px Nunito,sans-serif";
+  cx.fillText(temp+"°C",128,tmpY);
+  // Event count badge
+  var calNum=REAL_MONTHS.filter(function(r){return r.name===monthName})[0];
+  var evCount=calNum?getEventsForMonth(selectedYear,calNum.cal).length:0;
+  if(evCount>0){
+    cx.fillStyle="#E89B6C";cx.beginPath();cx.arc(128,badgeY,isDesk?13:16,0,Math.PI*2);cx.fill();
+    cx.fillStyle="#FEF6EE";cx.font="800 "+bFs+"px Nunito,sans-serif";
+    cx.fillText(evCount,128,badgeY+1);
+    cx.fillStyle="#D0C4B4";cx.font="700 "+hFs+"px Nunito,sans-serif";
+    cx.fillText("event"+(evCount>1?"s":""),128,hintY);
+  } else {
+    cx.fillStyle="#D0C4B4";cx.font="700 "+actFs+"px Nunito,sans-serif";
+    cx.fillText(isDesk?"click to view":"tap to view",128,actY);
+  }
+  var tex=new THREE.CanvasTexture(cv2);
+  tex.minFilter=THREE.LinearFilter;
+  return tex;
+}
+
+CARD_ORDER.forEach(function(ri,i){
+  var rm=REAL_MONTHS[ri];
+  var midAng=DEC1+(i*30+15)*Math.PI/180;
+  var r=MR;
+  var tex=makeCardTexture(rm.name,MONTHS[i].t);
+  var geo=new THREE.PlaneGeometry(CARD_W,CARD_H);
+  var mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,opacity:0,side:THREE.DoubleSide});
+  var mesh=new THREE.Mesh(geo,mat);
+  // Position at the month's center, on the ring
+  mesh.position.set(Math.cos(midAng)*r, CARD_H/2+DH/2+.02, Math.sin(midAng)*r);
+  // Rotate to face along the ring's tangent (clockwise direction)
+  mesh.rotation.y=-midAng+Math.PI;
+  cardGroup.add(mesh);
+  cards.push({mesh:mesh,monthIdx:ri,angle:midAng,origPos:mesh.position.clone(),origRotY:-midAng+Math.PI});
+});
+
+// Rebuild card textures (for year changes)
+function rebuildCards(){
+  cards.forEach(function(c,i){
+    var ri=CARD_ORDER[i];
+    var rm=REAL_MONTHS[ri];
+    if(c.mesh.material.map)c.mesh.material.map.dispose();
+    c.mesh.material.map=makeCardTexture(rm.name,MONTHS[i].t);
+    c.mesh.material.needsUpdate=true;
+  });
+}
+
+// ═══════════════ CARD CAROUSEL ═══════════════
+var carouselActive=false,carouselCenter=-1;
+var cardStates=[]; // {sx,sy,sz, tx,ty,tz, sry,try_, scale,tScale, opacity,tOpacity, delay}
+
+function fanCards(centerIdx){
+  carouselActive=true;carouselCenter=centerIdx;
+  cardStates=[];
+  var fwd=new THREE.Vector3();cam.getWorldDirection(fwd);
+  var camRight=new THREE.Vector3();camRight.crossVectors(fwd,new THREE.Vector3(0,1,0));
+  if(camRight.length()<0.01){camRight.set(1,0,0)}else{camRight.normalize()}
+  var cardY=DH/2+CARD_H/2+0.05;
+  // Center the fan on the clicked card's ring position, not a camera-projected point
+  var clickedPos=cards[centerIdx].origPos;
+  var lookPt=new THREE.Vector3(clickedPos.x,cardY,clickedPos.z);
+
+  for(var i=0;i<cards.length;i++){
+    var c=cards[i];
+    var diff=((i-centerIdx)%12+12)%12;if(diff>6)diff-=12;
+    var visible=Math.abs(diff)<=2;
+    // Use original ring positions stored at creation
+    var origPos=c.origPos.clone();
+    var origRotY=c.origRotY;
+
+    if(visible){
+      var xOff=diff*(isDesk?.55:.45);
+      var targetPos=lookPt.clone().add(camRight.clone().multiplyScalar(xOff)).add(new THREE.Vector3(0,Math.abs(diff)*-.05,0));
+      var targetRotY=Math.atan2(cam.position.x-targetPos.x,cam.position.z-targetPos.z);
+      var sc=diff===0?1:.85-Math.abs(diff)*.12;
+      var op=diff===0?.95:.7-Math.abs(diff)*.15;
+      // Random start offset for "falling into place"
+      var rndX=(Math.random()-.5)*2,rndY=Math.random()*1.5+.5,rndZ=(Math.random()-.5)*1;
+      var startPos=targetPos.clone().add(new THREE.Vector3(rndX,rndY,rndZ));
+      c.mesh.position.copy(startPos);
+      c.mesh.rotation.y=targetRotY+(Math.random()-.5)*.4;
+      c.mesh.scale.set(sc*.3,sc*.3,1);
+      c.mesh.material.opacity=0;
+      cardStates.push({idx:i,tx:targetPos.x,ty:targetPos.y,tz:targetPos.z,try_:targetRotY,tScale:sc,tOpacity:op,delay:Math.abs(diff)*.06+Math.random()*.04,t:0,origPos:origPos,origRotY:origRotY});
+    }else{
+      c.mesh.material.opacity=0;
+      cardStates.push({idx:i,tx:origPos.x,ty:origPos.y,tz:origPos.z,try_:origRotY,tScale:1,tOpacity:0,delay:0,t:1,origPos:origPos,origRotY:origRotY});
+    }
+  }
+}
+
+function collapseCards(){
+  carouselActive=false;carouselCenter=-1;
+  cards.forEach(function(c){
+    c.mesh.position.copy(c.origPos);
+    c.mesh.rotation.y=c.origRotY;
+    c.mesh.scale.set(1,1,1);
+    c.mesh.material.opacity=0;
+  });
+  cardStates=[];
+}
+
+function updateCards(){
+  if(carouselActive){
+    // Animate cards to their fan positions
+    cardStates.forEach(function(st){
+      if(st.tOpacity<=0)return;
+      st.t=Math.min(st.t+.02,1);
+      var et=Math.max(0,st.t-st.delay)/(1-st.delay);
+      et=et<0?0:et>1?1:et;
+      // Ease out cubic
+      var e=1-Math.pow(1-et,3);
+      var c=cards[st.idx];
+      c.mesh.position.x+=(st.tx-c.mesh.position.x)*(.08+e*.04);
+      c.mesh.position.y+=(st.ty-c.mesh.position.y)*(.08+e*.04);
+      c.mesh.position.z+=(st.tz-c.mesh.position.z)*(.08+e*.04);
+      c.mesh.rotation.y+=(st.try_-c.mesh.rotation.y)*.1;
+      var cs=c.mesh.scale.x;cs+=(st.tScale-cs)*.1;c.mesh.scale.set(cs,cs,1);
+      c.mesh.material.opacity+=(st.tOpacity-c.mesh.material.opacity)*.1;
+    });
+  }else{
+    var phi=clamp(cP,.01,Math.PI/2-.01);
+    var cardAlpha=clamp((phi-0.6)/0.5,0,0.92);
+    cards.forEach(function(c){c.mesh.material.opacity=cardAlpha});
+  }
+}
+
+// Card click detection
+var calOverlay=null;
+
+function showCalendar(monthIdx){
+  if(calOverlay){calOverlay.remove();calOverlay=null}
+  var rm=REAL_MONTHS[monthIdx];
+  var year=selectedYear;
+  // For Dec, could be previous year context, but keep current year for simplicity
+  var mo=rm.cal;
+
+  // Find day of week for 1st of month (0=Sun)
+  var first=new Date(year,mo-1,1).getDay();
+  // Shift to Monday start: Mon=0, Sun=6
+  var startDay=(first+6)%7;
+  var daysInMonth=new Date(year,mo,0).getDate();
+
+  var div=document.createElement("div");
+  div.id="cal-overlay";
+  div.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(45,42,38,0.4);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)";
+  div.addEventListener("click",function(e){if(e.target===div){div.remove();calOverlay=null}});
+
+  var card=document.createElement("div");
+  card.style.cssText="background:#FEF6EE;border-radius:16px;padding:"+(isDesk?"20px":"16px")+";max-width:"+(isDesk?"380px":"340px")+";width:90vw;box-shadow:0 8px 32px rgba(45,42,38,0.15)";
+
+  // Header
+  var hdr=document.createElement("div");
+  hdr.style.cssText="text-align:center;margin-bottom:12px";
+  hdr.innerHTML='<div style="font-size:22px;font-weight:900;color:#2D2A26">'+rm.name+'</div><div style="font-size:12px;font-weight:700;color:#B8A692">'+year+'</div>';
+  card.appendChild(hdr);
+
+  // Day headers
+  var dayNames=["Mo","Tu","We","Th","Fr","Sa","Su"];
+  var grid=document.createElement("div");
+  grid.style.cssText="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center";
+
+  dayNames.forEach(function(dn){
+    var cell=document.createElement("div");
+    cell.style.cssText="font-size:10px;font-weight:800;color:#B8A692;padding:4px 0";
+    cell.textContent=dn;grid.appendChild(cell);
+  });
+
+  // Empty cells before 1st
+  for(var e=0;e<startDay;e++){var empty=document.createElement("div");grid.appendChild(empty)}
+
+  // Day cells
+  for(var d=1;d<=daysInMonth;d++){
+    var cell=document.createElement("div");
+    var isToday=(isCurrentYear()&&d===td.getDate()&&mo===td.getMonth()+1);
+    var dayEvts=getEventsForDay(year,mo,d);
+    cell.style.cssText="font-size:13px;font-weight:"+(isToday?"900":"600")+";color:"+(isToday?"#FEF6EE":"#2D2A26")+";padding:4px 2px 2px;border-radius:8px;background:"+(isToday?"#E89B6C":"transparent")+";display:flex;flex-direction:column;align-items:center;gap:1px;cursor:"+(dayEvts.length?"pointer":"default")+";transition:background .15s";
+    var num=document.createElement("span");num.textContent=d;cell.appendChild(num);
+    if(dayEvts.length>0){
+      var dots=document.createElement("div");dots.style.cssText="display:flex;gap:2px;justify-content:center;height:5px";
+      for(var di=0;di<Math.min(dayEvts.length,3);di++){var dot=document.createElement("div");dot.style.cssText="width:4px;height:4px;border-radius:50%;background:"+dayEvts[di].col;dots.appendChild(dot)}
+      if(dayEvts.length>3){var plus=document.createElement("div");plus.style.cssText="width:4px;height:4px;border-radius:50%;background:#B8A692";dots.appendChild(plus)}
+      cell.appendChild(dots);
+      // Click handler to show day events
+      (function(day,evts,cellEl,isTd){
+        cellEl.addEventListener("click",function(e){
+          e.stopPropagation();
+          // Remove any previous day-events panel
+          var old=card.querySelector(".day-events");if(old)old.remove();
+          // Deselect all cells
+          grid.querySelectorAll(".day-sel").forEach(function(el){el.classList.remove("day-sel");el.style.outline="none"});
+          // Highlight selected cell
+          cellEl.classList.add("day-sel");
+          cellEl.style.outline="2px solid #2D2A26";
+          // Build events panel
+          var panel=document.createElement("div");
+          panel.className="day-events";
+          panel.style.cssText="margin-top:12px;max-height:180px;overflow-y:auto;border-top:1px solid #E8DDD0;padding-top:8px";
+          var title=document.createElement("div");
+          title.style.cssText="font-size:10px;font-weight:800;color:#B8A692;letter-spacing:.1em;margin-bottom:6px";
+          title.textContent=day+" "+rm.name.toUpperCase();
+          panel.appendChild(title);
+          evts.sort(function(a,b){return(a.t||"").localeCompare(b.t||"")});
+          evts.forEach(function(ev){
+            var row=document.createElement("div");
+            row.style.cssText="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #F0E6D8";
+            var pip=document.createElement("div");pip.style.cssText="width:6px;height:6px;border-radius:50%;background:"+ev.col+";flex-shrink:0";
+            var info=document.createElement("div");info.style.cssText="flex:1;min-width:0";
+            var line1=document.createElement("div");line1.style.cssText="font-size:12px;font-weight:700;color:#2D2A26;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+            line1.textContent=ev.s;
+            var line2=document.createElement("div");line2.style.cssText="font-size:10px;font-weight:600;color:#B8A692";
+            line2.textContent=ev.allDay?"All day":ev.t;
+            info.appendChild(line1);info.appendChild(line2);
+            row.appendChild(pip);row.appendChild(info);panel.appendChild(row);
+          });
+          // Insert panel before close button
+          var closeBtn=card.querySelector(".cal-close");
+          card.insertBefore(panel,closeBtn);
+        });
+      })(d,dayEvts,cell,isToday);
+    }
+    grid.appendChild(cell);
+  }
+
+  card.appendChild(grid);
+
+  // Close button
+  var cls=document.createElement("div");
+  cls.className="cal-close";
+  cls.style.cssText="text-align:center;margin-top:12px";
+  cls.innerHTML='<button style="border:none;background:#F0E6D8;color:#7A6E5E;padding:6px 20px;border-radius:99px;font-family:inherit;font-weight:800;font-size:12px;cursor:pointer">Close</button>';
+  cls.querySelector("button").addEventListener("click",function(){div.remove();calOverlay=null});
+  card.appendChild(cls);
+
+  div.appendChild(card);
+  document.body.appendChild(div);
+  calOverlay=div;
+}
+
+// Raycast cards on click
+function checkCardClick(px,py){
+  var r=cv.getBoundingClientRect();
+  var mx=((px-r.left)/r.width)*2-1;
+  var my=-((py-r.top)/r.height)*2+1;
+  var rc=new THREE.Raycaster();
+  rc.setFromCamera(new THREE.Vector2(mx,my),cam);
+  var meshes=cards.map(function(c){return c.mesh});
+  var hits=rc.intersectObjects(meshes);
+  if(hits.length>0){
+    for(var i=0;i<cards.length;i++){
+      if(cards[i].mesh===hits[0].object&&cards[i].mesh.material.opacity>0.15){
+        if(carouselActive){
+          // In carousel: center card opens calendar, others shift focus
+          var diff=((i-carouselCenter)%12+12)%12;if(diff>6)diff-=12;
+          if(diff===0){showCalendar(cards[i].monthIdx)}
+          else{fanCards(i)}
+        }else{
+          // Not in carousel: activate carousel centered on this card
+          fanCards(i);
+        }
+        return true;
+      }
+    }
+  }
+  // Click on empty space collapses carousel
+  if(carouselActive){collapseCards();return true}
+  return false;
+}
+
+// Escape key collapses carousel
+document.addEventListener("keydown",function(e){
+  if(e.key==="Escape"){
+    if(calOverlay){calOverlay.remove();calOverlay=null}
+    else if(carouselActive){collapseCards()}
+  }
+});
+
+// ═══════════════ QUARTER-ARC DETAIL VIEW ═══════════════
+var dayDotsGroup=new THREE.Group();Sc.add(dayDotsGroup);
+var dayDots=[],selectedDot=-1;
+var detailArrowsEl=null;
+var detailSeasonEl=null;
+
+function clearDayDots(){
+  while(dayDotsGroup.children.length){var c=dayDotsGroup.children[0];if(c.geometry)c.geometry.dispose();if(c.material)c.material.dispose();dayDotsGroup.remove(c)}
+  dayDots=[];selectedDot=-1;
+  if(detailArrowsEl){detailArrowsEl.style.display="none"}
+  if(detailSeasonEl){detailSeasonEl.style.display="none"}
+}
+
+function buildDayDots(centerMonthIdx){
+  clearDayDots();
+  var calMonths=[12,1,2,3,4,5,6,7,8,9,10,11];
+  var monthDays=[31,28,31,30,31,30,31,31,30,31,30,31];
+  // Show 3 months centered on centerMonthIdx
+  for(var offset=-1;offset<=1;offset++){
+    var mi=(centerMonthIdx+offset+12)%12;
+    var mo=calMonths[mi];
+    for(var d=1;d<=monthDays[mi];d++){
+      var ang=dateAng(mo,d);
+      var hasEvts=getEventsForDay(selectedYear,mo,d).length>0;
+      var isToday=isCurrentYear()&&d===td.getDate()&&mo===td.getMonth()+1;
+      var r=MR;
+      var dotR=isToday?.035:hasEvts?.03:.02;
+      var geo=new THREE.CircleGeometry(dotR,16);geo.rotateX(-Math.PI/2);
+      var col=isToday?0xE89B6C:hasEvts?0x8BB0C9:0xB8A692;
+      var mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0});
+      var mesh=new THREE.Mesh(geo,mat);
+      mesh.position.set(Math.cos(ang)*r,DH/2+.02,Math.sin(ang)*r);
+      dayDotsGroup.add(mesh);
+      dayDots.push({mesh:mesh,month:mo,day:d,angle:ang,hasEvts:hasEvts,targetOpacity:.85});
+      // Event ring indicator
+      if(hasEvts&&!isToday){
+        var ringGeo=new THREE.RingGeometry(dotR+.005,dotR+.012,16);ringGeo.rotateX(-Math.PI/2);
+        var ringMesh=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:0xE89B6C,transparent:true,opacity:0}));
+        ringMesh.position.copy(mesh.position);ringMesh.position.y+=.001;
+        dayDotsGroup.add(ringMesh);
+      }
+    }
+  }
+  if(!detailArrowsEl){
+    detailArrowsEl=document.createElement("div");
+    detailArrowsEl.style.cssText="position:fixed;bottom:80px;left:0;right:0;z-index:10;display:flex;justify-content:center;gap:12px;pointer-events:none";
+    detailArrowsEl.innerHTML='<button class="vb" style="pointer-events:auto" id="dLeft">← prev</button><button class="vb" style="pointer-events:auto" id="dRight">next →</button>';
+    document.body.appendChild(detailArrowsEl);
+    document.getElementById("dLeft").addEventListener("click",function(){detailCenter=(detailCenter-1+12)%12;buildDayDots(detailCenter);var a=DEC1+(detailCenter*30+15)*Math.PI/180;tT=-a+Math.PI});
+    document.getElementById("dRight").addEventListener("click",function(){detailCenter=(detailCenter+1)%12;buildDayDots(detailCenter);var a=DEC1+(detailCenter*30+15)*Math.PI/180;tT=-a+Math.PI});
+  }
+  detailArrowsEl.style.display="flex";
+  // Season label
+  var si=Math.floor(centerMonthIdx/3);
+  var s=SEASONS[si];
+  if(!detailSeasonEl){
+    detailSeasonEl=document.createElement("div");
+    detailSeasonEl.style.cssText="position:fixed;left:18px;top:50%;transform:translateY(-50%);z-index:10;pointer-events:none;display:flex;flex-direction:column;align-items:flex-start;gap:4px";
+    document.body.appendChild(detailSeasonEl);
+  }
+  detailSeasonEl.innerHTML='<div style="font-size:clamp(28px,5vw,52px);font-weight:900;color:'+s.accent+';letter-spacing:-.02em;line-height:1;font-family:inherit;writing-mode:vertical-lr;text-orientation:mixed;transform:rotate(180deg)">'+s.name.toUpperCase()+'</div>';
+  detailSeasonEl.style.display="flex";
+}
+
+// Update day dots opacity (fade in when in detail view)
+function updateDayDots(){
+  var inDetail=(aV===DETAIL_IDX);
+  dayDots.forEach(function(dd){
+    var target=inDetail?dd.targetOpacity:0;
+    dd.mesh.material.opacity+=(target-dd.mesh.material.opacity)*.12;
+  });
+  // Also fade ring indicators
+  for(var i=0;i<dayDotsGroup.children.length;i++){
+    var c=dayDotsGroup.children[i];
+    if(c.material&&c.material.opacity!==undefined){
+      var target=inDetail?.85:0;
+      c.material.opacity+=(target-c.material.opacity)*.12;
+    }
+  }
+}
+
+// Raycast day dots on click
+function checkDotClick(px,py){
+  if(aV!==DETAIL_IDX||!dayDots.length)return false;
+  var r=cv.getBoundingClientRect();
+  var mx=((px-r.left)/r.width)*2-1;
+  var my=-((py-r.top)/r.height)*2+1;
+  var rc=new THREE.Raycaster();
+  rc.setFromCamera(new THREE.Vector2(mx,my),cam);
+  var meshes=dayDots.map(function(d){return d.mesh});
+  var hits=rc.intersectObjects(meshes);
+  if(hits.length>0){
+    for(var i=0;i<dayDots.length;i++){
+      if(dayDots[i].mesh===hits[0].object){
+        selectedDot=i;
+        moveH(dayDots[i].angle);
+        // Highlight selected
+        dayDots.forEach(function(dd,j){
+          dd.mesh.scale.set(j===i?1.8:1,j===i?1.8:1,1);
+        });
+        // Show events if any
+        if(dayDots[i].hasEvts){
+          var mo=dayDots[i].month;
+          var monthIdx=REAL_MONTHS.findIndex(function(rm){return rm.cal===mo});
+          if(monthIdx>=0)showCalendar(monthIdx);
+        }
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Double-tap detection for entering detail view
+var lastTapTime=0,lastTapPos={x:0,y:0};
+
+function resize(){var w=window.innerWidth,h=window.innerHeight;R.setSize(w,h);if(aV===DETAIL_IDX){cam.aspect=(w*2)/h;cam.setViewOffset(w*2,h,w,0,w,h)}else{cam.clearViewOffset();cam.aspect=w/h}cam.updateProjectionMatrix()}
+window.addEventListener("resize",resize);resize();
+
+if(isDesk){document.getElementById("sub-hint").textContent="drag to orbit · scroll to zoom · click center to move hand · double-click for detail"}
+
+(function anim(){requestAnimationFrame(anim);updC();updateCards();updateDayDots();R.render(Sc,cam)})();
+buildB();buildV();buildY();updI();
+
+})();
+</script>
+</body>
+</html>
