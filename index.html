@@ -405,7 +405,7 @@ var helixCenterZ=helixMidY;
 var CB=Math.PI/2;
 var defD=isDesk?14:18;
 // Spherical around Y-axis, centered at (0,0,helixCenterZ)
-var cT=CB-Math.PI/4,cP=.55,cD=defD,tT=CB-Math.PI/4,tP=.55,tD=defD;
+var cT=CB+3*Math.PI/4,cP=.55,cD=defD,tT=CB+3*Math.PI/4,tP=.55,tD=defD;
 var orb=false,orbS={x:0,y:0},oTS=0,oPS=0,oCX=0,oCY=0,oPX=0,oPY=0,orbP=false;
 var pin=false,pSD=0,pDD=0;
 function updC(){
@@ -506,11 +506,11 @@ cv.addEventListener("touchmove",function(e){e.preventDefault()},{passive:false})
 
 // VIEWS — only Isometric and Axis
 var VW=isDesk?[
-  {n:"Isometric",p:.55,t:CB-Math.PI/4,d:14},
-  {n:"Axis",p:Math.PI/2-.02,t:CB,d:12}
+  {n:"Isometric",p:.55,t:CB+3*Math.PI/4,d:14},
+  {n:"Axis",p:Math.PI/2-.02,t:CB+Math.PI,d:12}
 ]:[
-  {n:"Isometric",p:.55,t:CB-Math.PI/4,d:18},
-  {n:"Axis",p:Math.PI/2-.02,t:CB,d:16}
+  {n:"Isometric",p:.55,t:CB+3*Math.PI/4,d:18},
+  {n:"Axis",p:Math.PI/2-.02,t:CB+Math.PI,d:16}
 ];
 var aV=0;
 function setV(i){
