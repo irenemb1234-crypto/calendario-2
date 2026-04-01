@@ -30,11 +30,8 @@
   .yrow::-webkit-scrollbar{display:none}
   .yb{border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#7A6E5E;padding:3px 8px;border-radius:99px;cursor:pointer;font-size:9px;font-family:inherit;font-weight:800;outline:none;white-space:nowrap;flex-shrink:0}
   .yb.on{background:#2D2A26;color:#FEF6EE;border-color:#2D2A26}
-  .clip-wrap{display:flex;align-items:center;gap:6px;margin-top:4px}
-  .clip-wrap span{font-size:8px;font-weight:800;color:#B8A692}
-  .clip-slider{-webkit-appearance:none;appearance:none;width:clamp(120px,30vw,220px);height:5px;border-radius:99px;background:#E8DED0;outline:none}
-  .clip-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:#2D2A26;cursor:pointer}
-  .clip-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#2D2A26;cursor:pointer;border:none}
+  .otog{border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#7A6E5E;padding:4px 10px;border-radius:99px;cursor:pointer;font-size:9px;font-family:inherit;font-weight:800;outline:none}
+  .otog.on{background:#2D2A26;color:#FEF6EE;border-color:#2D2A26}
   canvas{display:block;width:100%;height:100%;touch-action:none}
 </style>
 </head>
@@ -48,8 +45,8 @@
 <canvas id="c"></canvas>
 <div id="ui-bot">
   <div class="info"><div><div class="info-l" id="il">TODAY</div><div class="info-d" id="id"></div></div><button class="info-r" id="ir" style="display:none">← today</button></div>
-  <div class="clip-wrap"><span>FULL</span><input type="range" class="clip-slider" id="clipSlider" min="0" max="100" value="0"><span>CLIP</span></div>
   <div class="vrow" id="vr"></div>
+  <button class="otog" id="orbTog">Explore: OFF</button>
   <div class="leg" id="lg"></div>
 </div>
 
@@ -249,7 +246,72 @@ var clipRect=new THREE.Mesh(clipRectGeo,clipRectMat);
 clipRect.visible=false;
 helixGroup.add(clipRect);
 
-// ═══════════════ TICK MARKS ═══════════════
+// Clip intersection line — radial line where plane meets the helicoid
+var clipLineMat=new THREE.LineBasicMaterial({color:0xE89B6C,linewidth:2});
+var clipLineGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(1,0,0)]);
+var clipLine=new THREE.Line(clipLineGeo,clipLineMat);
+clipLine.visible=false;
+helixGroup.add(clipLine);
+
+// Clip date label (sprite, stays readable)
+var clipDateSp=null;
+function updateClipDateLabel(txt){
+  if(clipDateSp){if(clipDateSp.material.map)clipDateSp.material.map.dispose();clipDateSp.material.dispose();helixGroup.remove(clipDateSp)}
+  var cv2=document.createElement("canvas"),cx=cv2.getContext("2d");
+  var fn="800 22px Nunito,sans-serif";cx.font=fn;
+  var w=Math.ceil(cx.measureText(txt).width)+12,h=30;
+  cv2.width=w*2;cv2.height=h*2;cx.scale(2,2);
+  cx.fillStyle="rgba(45,42,38,0.85)";
+  var rr=h/2;cx.beginPath();cx.moveTo(rr,0);cx.lineTo(w-rr,0);cx.arcTo(w,0,w,rr,rr);cx.lineTo(w,h-rr);cx.arcTo(w,h,w-rr,h,rr);cx.lineTo(rr,h);cx.arcTo(0,h,0,h-rr,rr);cx.lineTo(0,rr);cx.arcTo(0,0,rr,0,rr);cx.fill();
+  cx.font=fn;cx.fillStyle="#FEF6EE";cx.textAlign="center";cx.textBaseline="middle";cx.fillText(txt,w/2,h/2);
+  var tex=new THREE.CanvasTexture(cv2);tex.minFilter=THREE.LinearFilter;
+  clipDateSp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
+  clipDateSp.scale.set(w/100,h/100,1);
+  helixGroup.add(clipDateSp);
+}
+
+// 3D drag handle for clip plane — small sphere next to the clip rect
+var handleGeo=new THREE.SphereGeometry(0.08,16,16);
+var handleMat=new THREE.MeshBasicMaterial({color:0x2D2A26});
+var clipHandle=new THREE.Mesh(handleGeo,handleMat);
+clipHandle.visible=false;
+helixGroup.add(clipHandle);
+
+// Compute date from clip Y position (local space)
+function clipYToDate(clipY){
+  var yf=-clipY/PITCH;
+  var yi=clamp(Math.floor(yf),0,NUM_YEARS-1);
+  var af=yf-yi;
+  var ang=jan1A+af*Math.PI*2;
+  var d=angDate(ang);
+  return{year:YEARS[yi],month:d.month,day:d.day,ang:ang,yi:yi,af:af};
+}
+
+// Update clip visuals (line, label, handle position)
+function updateClipVisuals(clipY){
+  var info=clipYToDate(clipY);
+  var ang=info.ang;
+  // Intersection line from IR to OR at the clip angle
+  var pts=[new THREE.Vector3(Math.cos(ang)*IR,clipY+DH/2+.006,Math.sin(ang)*IR),
+           new THREE.Vector3(Math.cos(ang)*OR,clipY+DH/2+.006,Math.sin(ang)*OR)];
+  clipLine.geometry.dispose();
+  clipLine.geometry=new THREE.BufferGeometry().setFromPoints(pts);
+  clipLine.visible=true;
+  // Date label
+  var txt=info.day+" "+info.month+" "+info.year;
+  updateClipDateLabel(txt);
+  clipDateSp.position.set(Math.cos(ang)*(OR+.45),clipY+DH/2,Math.sin(ang)*(OR+.45));
+  // Handle position — at outer edge of clip rect
+  clipHandle.position.set(0,clipY,OR+0.4);
+  clipHandle.visible=true;
+}
+
+function hideClipVisuals(){
+  clipLine.visible=false;
+  clipHandle.visible=false;
+  if(clipDateSp){helixGroup.remove(clipDateSp);if(clipDateSp.material.map)clipDateSp.material.map.dispose();clipDateSp.material.dispose();clipDateSp=null}
+}
+
 // ═══════════════ TICK MARKS ═══════════════
 var tickGroup=new THREE.Group();helixGroup.add(tickGroup);
 function buildTicks(){
@@ -360,44 +422,54 @@ function updH(){
 }
 updH();
 
-// LABELS
+// LABELS — surface-mounted stickers on the helicoid
 var lG=new THREE.Group();helixGroup.add(lG);
-function mkS(txt,fs,col){
+function mkLabel(txt,fs,col){
   var cv2=document.createElement("canvas"),cx=cv2.getContext("2d");
   var fn="900 "+fs+"px Nunito,sans-serif";cx.font=fn;
-  var w=Math.ceil(cx.measureText(txt).width)+6,h=fs*1.3;
-  cv2.width=w*2;cv2.height=h*2;cx.scale(2,2);cx.font=fn;cx.fillStyle=col;cx.textAlign="center";cx.textBaseline="middle";cx.fillText(txt,w/2,h/2);
+  var tw=Math.ceil(cx.measureText(txt).width)+6,th=fs*1.3;
+  cv2.width=tw*2;cv2.height=th*2;cx.scale(2,2);cx.font=fn;cx.fillStyle=col;
+  cx.textAlign="center";cx.textBaseline="middle";cx.fillText(txt,tw/2,th/2);
   var tex=new THREE.CanvasTexture(cv2);tex.minFilter=THREE.LinearFilter;
-  var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
-  sp.scale.set(w/120,h/120,1);return sp;
+  var geo=new THREE.PlaneGeometry(tw/130,th/130);
+  var mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide,depthTest:false});
+  var m=new THREE.Mesh(geo,mat);
+  m.scale.x=-1; // counter helixGroup.scale.x=-1 mirror
+  return m;
+}
+function placeSurface(m,ang,y,rad){
+  m.position.set(Math.cos(ang)*rad,y+DH/2+.003,Math.sin(ang)*rad);
+  m.rotation.order='YXZ';
+  m.rotation.y=ang-Math.PI/2;
+  m.rotation.x=-Math.PI/2;
 }
 function buildLabels(){
   while(lG.children.length){var c=lG.children[0];if(c.material){if(c.material.map)c.material.map.dispose();c.material.dispose()}lG.remove(c)}
   var hiIdx=YEARS.indexOf(highlightYear);
-  // Month labels for highlighted year
+  // Month labels on the helicoid surface for highlighted year
   MONTHS.forEach(function(m,i){
     var a=DEC1+(i*30+15)*Math.PI/180;
     var angFrac=yearAngFrac(a);
-    var y=-(hiIdx+angFrac)*PITCH+DH/2+.05;
-    var sp=mkS(m.a,18,"rgba(45,42,38,0.45)");
-    sp.position.set(Math.cos(a)*LABEL_R,y,Math.sin(a)*LABEL_R);lG.add(sp);
+    var y=-(hiIdx+angFrac)*PITCH;
+    var lab=mkLabel(m.a,14,"rgba(45,42,38,0.55)");
+    placeSurface(lab,a,y,MR);lG.add(lab);
   });
-  // Season labels for highlighted year
+  // Season labels on the surface
   SEASONS.forEach(function(s,i){
     var a=SM[i];
     var angFrac=yearAngFrac(a);
-    var y=-(hiIdx+angFrac)*PITCH+DH/2;
-    var sp=mkS(s.name.toUpperCase(),14,"rgba(45,42,38,0.14)");
-    sp.position.set(Math.cos(a)*(OUTER_R+.25),y,Math.sin(a)*(OUTER_R+.25));lG.add(sp);
+    var y=-(hiIdx+angFrac)*PITCH;
+    var lab=mkLabel(s.name.toUpperCase(),10,"rgba(45,42,38,0.2)");
+    placeSurface(lab,a,y,IR+.12);lG.add(lab);
   });
-  // Year labels on the side
+  // Year labels on the inner surface
   for(var yi=0;yi<NUM_YEARS;yi++){
     var ang=dateAng(6,15);
     var angFrac=yearAngFrac(ang);
     var y=-(yi+angFrac)*PITCH;
     var col=yi===hiIdx?"rgba(45,42,38,0.8)":"rgba(45,42,38,0.25)";
-    var sp=mkS(String(YEARS[yi]),yi===hiIdx?22:16,col);
-    sp.position.set(Math.cos(ang)*(OR+.35),y,Math.sin(ang)*(OR+.35));lG.add(sp);
+    var lab=mkLabel(String(YEARS[yi]),yi===hiIdx?18:13,col);
+    placeSurface(lab,ang,y,IR-.05);lG.add(lab);
   }
 }
 buildLabels();
@@ -441,6 +513,8 @@ function wPt(px,py){
 }
 
 // INTERACTION
+var orbLocked=true; // orbit locked by default
+var clipDrag=false,clipDragStartY=0,clipDragStartVal=0;
 var ptrs=new Map(),dH=false,DZ=8,lastHA=null;
 var tapStart=null;
 function moveH(nr){
@@ -453,6 +527,18 @@ cv.addEventListener("pointerdown",function(e){
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   tapStart={x:e.clientX,y:e.clientY,t:Date.now(),id:e.pointerId};
   if(ptrs.size===1){
+    // Check if clicking near the clip handle (3D drag)
+    if(clipHandle.visible){
+      var rc2=new THREE.Raycaster();
+      var r2=cv.getBoundingClientRect();
+      var mx2=((e.clientX-r2.left)/r2.width)*2-1,my2=-((e.clientY-r2.top)/r2.height)*2+1;
+      rc2.setFromCamera(new THREE.Vector2(mx2,my2),activeCam);
+      var hits=rc2.intersectObject(clipHandle,false);
+      if(hits.length>0&&hits[0].distance<50){
+        clipDrag=true;clipDragStartY=e.clientY;clipDragStartVal=clipHandle.position.y;
+        cv.style.cursor="grabbing";return;
+      }
+    }
     var pt=wPt(e.clientX,e.clientY);
     if(pt){
       var d=Math.sqrt(pt.x*pt.x+pt.z*pt.z);
@@ -465,8 +551,8 @@ cv.addEventListener("pointerdown",function(e){
         moveH(na);buildB();return;
       }
     }
-    orbP=true;orb=false;orbS={x:e.clientX,y:e.clientY};oTS=tT;oPS=tP;
-  }else if(ptrs.size===2){
+    if(!orbLocked){orbP=true;orb=false;orbS={x:e.clientX,y:e.clientY};oTS=tT;oPS=tP}
+  }else if(ptrs.size===2&&!orbLocked){
     orb=false;orbP=false;dH=false;pin=true;
     var ps=Array.from(ptrs.values());
     pSD=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y);pDD=tD;
@@ -476,6 +562,14 @@ cv.addEventListener("pointerdown",function(e){
 cv.addEventListener("pointermove",function(e){
   if(!ptrs.has(e.pointerId))return;
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(clipDrag){
+    // Map screen Y delta to local Y movement along helix axis
+    var dy=e.clientY-clipDragStartY;
+    var scale=helixH/300; // pixels to local units
+    var newY=clamp(clipDragStartVal+dy*scale,-helixH,0);
+    var c=-newY; // clipPlane constant (world Z = local Y)
+    updateClipFromValue(c);return;
+  }
   if(dH){var pt=wPt(e.clientX,e.clientY);if(pt)moveH(Math.atan2(pt.z,pt.x));return}
   if(pin&&ptrs.size===2){var ps=Array.from(ptrs.values());tD=clamp(pDD*(pSD/Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y)),isDesk?4:5,25)}
   else if(ptrs.size===1){
@@ -494,6 +588,7 @@ cv.addEventListener("pointerup",function(e){
   }
   tapStart=null;
   ptrs.delete(e.pointerId);
+  if(clipDrag){clipDrag=false;cv.style.cursor="";return}
   if(dH){dH=false;cv.style.cursor="";buildB()}
   if(!ptrs.size){orb=false;pin=false;orbP=false}
   if(ptrs.size<2)pin=false;
@@ -504,7 +599,7 @@ cv.addEventListener("pointercancel",function(e){
   if(!ptrs.size){orb=false;pin=false;orbP=false;dH=false}
 });
 
-cv.addEventListener("wheel",function(e){tD=clamp(tD+e.deltaY*.004,isDesk?4:5,25);e.preventDefault()},{passive:false});
+cv.addEventListener("wheel",function(e){if(!orbLocked){tD=clamp(tD+e.deltaY*.004,isDesk?4:5,25)}e.preventDefault()},{passive:false});
 
 // Ensure touch events don't scroll on mobile
 cv.style.touchAction="none";
@@ -528,21 +623,30 @@ function setV(i){
   hG.visible=!!VW[i].ortho;
   buildV();
 }
-function resetAll(){handOff=null;lastHA=null;highlightYear=td.getFullYear();rebuildHelicoid();updateRayPlane();updH();updI();buildB();buildY();setV(0);tD=defD;document.getElementById("clipSlider").value=0;updateClipFromSlider(0)}
+function resetAll(){handOff=null;lastHA=null;highlightYear=td.getFullYear();rebuildHelicoid();updateRayPlane();updH();updI();buildB();buildY();setV(0);tD=defD;updateClipFromValue(999)}
 
 // CLIPPING PLANE CONTROL
 // normal (0,0,1): clips where z < -c. Plane surface at world z = -c.
-// Slider 0 = plane at front (2026 end, most negative Z), full helix visible
-// Slider 100 = plane at back (2022 end), everything clipped
-function updateClipFromSlider(val){
-  if(val<=0){clipPlane.constant=999;clipRect.visible=false;clipPlaneEnabled=false;return}
-  var c=lerp(helixH+0.3,-0.3,val/100);
+// c = clipPlane.constant. Local Y of clip = -c.
+function updateClipFromValue(c){
+  if(c>helixH+1){clipPlane.constant=999;clipRect.visible=false;clipPlaneEnabled=false;hideClipVisuals();return}
+  c=clamp(c,-0.3,helixH+0.3);
   clipPlane.constant=c;
-  clipRect.position.y=-c; // local Y = world Z = -c
+  var localY=-c;
+  clipRect.position.y=localY;
   clipRect.visible=true;
   clipPlaneEnabled=true;
+  updateClipVisuals(localY);
 }
-document.getElementById("clipSlider").addEventListener("input",function(e){updateClipFromSlider(+e.target.value)})
+
+// Orbit toggle
+var orbTogBtn=document.getElementById("orbTog");
+orbTogBtn.addEventListener("click",function(){
+  orbLocked=!orbLocked;
+  orbTogBtn.textContent="Explore: "+(orbLocked?"OFF":"ON");
+  orbTogBtn.className="otog"+(orbLocked?"":" on");
+  if(orbLocked){setV(aV)} // snap back to current view
+})
 
 function setHighlight(y){
   if(y===highlightYear)return;
@@ -604,9 +708,11 @@ var lastTapTime=0,lastTapPos={x:0,y:0};
 function resize(){var w=window.innerWidth,h=window.innerHeight;R.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix();var a=w/h;ortCam.left=-ortSize*a;ortCam.right=ortSize*a;ortCam.top=ortSize;ortCam.bottom=-ortSize;ortCam.updateProjectionMatrix()}
 window.addEventListener("resize",resize);resize();
 
-if(isDesk){document.getElementById("sub-hint").textContent="drag to orbit · scroll to zoom · click year to highlight · slide to clip"}
+if(isDesk){document.getElementById("sub-hint").textContent="drag handle to clip · click Explore to orbit · click year to highlight"}
 
 helixGroup.updateMatrixWorld(true);
+// Initialize clip plane visible at the front (2026 end)
+updateClipFromValue(helixH+0.2);
 (function anim(){requestAnimationFrame(anim);updC();R.render(Sc,activeCam)})();
 buildB();buildV();buildY();updI();
 
