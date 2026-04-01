@@ -138,6 +138,7 @@ var Sc=new THREE.Scene();
 // Group to hold all helicoid objects; rotated to lay helix horizontal
 var helixGroup=new THREE.Group();
 helixGroup.rotation.x=Math.PI/2; // Y-axis → Z-axis (helix extends along +Z)
+helixGroup.scale.x=-1; // mirror so coils match hand-drawn reference
 Sc.add(helixGroup);
 var isDesk=window.innerWidth>=900;
 var cam=new THREE.PerspectiveCamera(isDesk?32:40,1,.1,100);
@@ -188,7 +189,7 @@ function buildHelicoid(yOff,normalUp){
   return geo;
 }
 
-var clipPlane=new THREE.Plane(new THREE.Vector3(0,0,-1),999); // world-space Z clip
+var clipPlane=new THREE.Plane(new THREE.Vector3(0,0,1),999); // world-space Z clip, clips toward viewer
 var clipPlaneEnabled=false;
 var ringMat=new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[clipPlane],clipShadows:true});
 var topMesh=new THREE.Mesh(buildHelicoid(DH/2,true),ringMat);
@@ -520,12 +521,14 @@ function setV(i){
 function resetAll(){handOff=null;lastHA=null;highlightYear=td.getFullYear();rebuildHelicoid();updateRayPlane();updH();updI();buildB();buildY();setV(0);tD=defD;document.getElementById("clipSlider").value=0;updateClipFromSlider(0)}
 
 // CLIPPING PLANE CONTROL
+// normal (0,0,1): clips where z < -c. Plane surface at world z = -c.
+// Slider 0 = plane at front (2026 end, most negative Z), full helix visible
+// Slider 100 = plane at back (2022 end), everything clipped
 function updateClipFromSlider(val){
   if(val<=0){clipPlane.constant=999;clipRect.visible=false;clipPlaneEnabled=false;return}
-  // val 0-100: progressively clip from oldest (y=0) to newest (y=-helixH)
-  var c=lerp(0.3,-(helixH+0.3),val/100);
+  var c=lerp(helixH+0.3,-0.3,val/100);
   clipPlane.constant=c;
-  clipRect.position.y=c;
+  clipRect.position.y=-c; // local Y = world Z = -c
   clipRect.visible=true;
   clipPlaneEnabled=true;
 }
