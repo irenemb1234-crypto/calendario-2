@@ -328,7 +328,7 @@ function rebuildHelicoid(){
 // ═══════════════ HAND ═══════════════
 var handOff=null;
 function hAng(){return handOff!==null?handOff:dateAng(td.getMonth()+1,td.getDate())}
-var hG=new THREE.Group();helixGroup.add(hG);
+var hG=new THREE.Group();hG.visible=false;helixGroup.add(hG);
 var hL=TICK_OR+.05;
 // Thin elegant line (PlaneGeometry baked flat on XZ plane)
 var handW=.012,handMat=new THREE.MeshBasicMaterial({color:0xE89B6C,transparent:true,opacity:.7,side:THREE.DoubleSide});
@@ -417,8 +417,8 @@ function updC(){
   var p=clamp(cP,.05,Math.PI/2-.01);
   cam.position.set(cD*Math.sin(p)*Math.cos(cT),cD*Math.cos(p),helixCenterZ+cD*Math.sin(p)*Math.sin(cT));
   cam.lookAt(0,0,helixCenterZ);
-  // Keep ortho cam along helix axis for flat circle view
-  ortCam.position.set(0,0,helixCenterZ+20);
+  // Keep ortho cam along helix axis from 2026 end for flat circle view
+  ortCam.position.set(0,0,helixCenterZ-20);
   ortCam.lookAt(0,0,helixCenterZ);
 }
 
@@ -524,6 +524,8 @@ function setV(i){
   aV=i;tP=VW[i].p;tD=VW[i].d;tT=VW[i].t;
   // Axis view uses orthographic camera for flat circle (no tunnel)
   activeCam=VW[i].ortho?ortCam:cam;
+  // Hand only visible in axis view
+  hG.visible=!!VW[i].ortho;
   buildV();
 }
 function resetAll(){handOff=null;lastHA=null;highlightYear=td.getFullYear();rebuildHelicoid();updateRayPlane();updH();updI();buildB();buildY();setV(0);tD=defD;document.getElementById("clipSlider").value=0;updateClipFromSlider(0)}
