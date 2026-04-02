@@ -305,8 +305,8 @@ function updateClipVisuals(clipY){
   var txt=info.day+" "+info.month+" "+info.year;
   updateClipDateLabel(txt);
   clipDateSp.position.set(Math.cos(ang)*(OR+.45),clipY+DH/2,Math.sin(ang)*(OR+.45));
-  // Handle position — at right side of clip rect
-  clipHandle.position.set(-(OR+0.4),clipY,0);
+  // Handle position — below the helicoid (local +Z maps to world -Y = screen bottom)
+  clipHandle.position.set(0,clipY,OR+0.5);
   clipHandle.visible=true;
 }
 
@@ -443,11 +443,11 @@ function mkLabel(txt,fs,col){
 }
 function placeSurface(m,ang,y,rad){
   m.position.set(Math.cos(ang)*rad,y+DH/2+.003,Math.sin(ang)*rad);
-  // Label lies flat on the top surface, text along tangent direction
+  // Face local -Y (maps to world -Z = toward camera/2026 end)
   m.rotation.order='XYZ';
-  m.rotation.x=-Math.PI/2; // lay flat (face up)
-  m.rotation.y=0;
-  m.rotation.z=-(ang+Math.PI/2); // align text along tangent
+  m.rotation.x=Math.PI/2; // face -Y (toward camera)
+  m.rotation.y=-(ang+Math.PI/2); // align text along tangent
+  m.rotation.z=0;
 }
 function buildLabels(){
   while(lG.children.length){var c=lG.children[0];if(c.material){if(c.material.map)c.material.map.dispose();c.material.dispose()}lG.remove(c)}
@@ -525,7 +525,8 @@ function wPt(px,py){
 
 // INTERACTION
 var orbLocked=true; // orbit locked by default
-var clipDrag=false,clipDragStartY=0,clipDragStartVal=0;
+var clipDrag=false,clipDragStartSX=0,clipDragStartSY=0,clipDragStartVal=0;
+var axDirX=0,axDirY=0; // screen-space direction of helix axis
 var ptrs=new Map(),dH=false,DZ=8,lastHA=null;
 var tapStart=null;
 function moveH(nr){
@@ -546,7 +547,14 @@ cv.addEventListener("pointerdown",function(e){
       rc2.setFromCamera(new THREE.Vector2(mx2,my2),activeCam);
       var hits=rc2.intersectObject(clipHandle,true);
       if(hits.length>0){
-        clipDrag=true;clipDragStartY=e.clientY;clipDragStartVal=clipHandle.position.y;
+        clipDrag=true;clipDragStartSX=e.clientX;clipDragStartSY=e.clientY;clipDragStartVal=clipHandle.position.y;
+        // Compute screen-space direction of helix axis (world Z)
+        var pa=new THREE.Vector3(0,0,helixCenterZ-1),pb=new THREE.Vector3(0,0,helixCenterZ+1);
+        pa.project(activeCam);pb.project(activeCam);
+        var sxa=(pa.x+1)/2*cv.clientWidth,sya=(-pa.y+1)/2*cv.clientHeight;
+        var sxb=(pb.x+1)/2*cv.clientWidth,syb=(-pb.y+1)/2*cv.clientHeight;
+        var al=Math.hypot(sxb-sxa,syb-sya);
+        axDirX=(sxb-sxa)/al;axDirY=(syb-sya)/al;
         cv.style.cursor="grabbing";return;
       }
     }
@@ -574,12 +582,12 @@ cv.addEventListener("pointermove",function(e){
   if(!ptrs.has(e.pointerId))return;
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(clipDrag){
-    // Map screen Y delta to local Y movement along helix axis
-    var dy=e.clientY-clipDragStartY;
-    var scale=helixH/300; // pixels to local units
-    var newY=clamp(clipDragStartVal+dy*scale,-helixH,0);
-    var c=-newY; // clipPlane constant (world Z = local Y)
-    updateClipFromValue(c);return;
+    // Project mouse delta onto helix axis screen direction
+    var mdx=e.clientX-clipDragStartSX,mdy=e.clientY-clipDragStartSY;
+    var proj=mdx*axDirX+mdy*axDirY; // signed pixels along axis
+    var sc=helixH/300;
+    var newY=clamp(clipDragStartVal+proj*sc,-helixH,0);
+    updateClipFromValue(-newY);return;
   }
   if(dH){var pt=wPt(e.clientX,e.clientY);if(pt)moveH(Math.atan2(pt.z,pt.x));return}
   if(pin&&ptrs.size===2){var ps=Array.from(ptrs.values());ortSize=clamp(pDD*(pSD/Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y)),1.5,10);resize()}
