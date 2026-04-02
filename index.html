@@ -30,11 +30,8 @@
   .yrow::-webkit-scrollbar{display:none}
   .yb{border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#7A6E5E;padding:3px 8px;border-radius:99px;cursor:pointer;font-size:9px;font-family:inherit;font-weight:800;outline:none;white-space:nowrap;flex-shrink:0}
   .yb.on{background:#2D2A26;color:#FEF6EE;border-color:#2D2A26}
-  .clip-wrap{display:flex;align-items:center;gap:6px;margin-top:4px}
-  .clip-wrap span{font-size:8px;font-weight:800;color:#B8A692}
-  .clip-slider{-webkit-appearance:none;appearance:none;width:clamp(120px,30vw,220px);height:5px;border-radius:99px;background:#E8DED0;outline:none}
-  .clip-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:#2D2A26;cursor:pointer}
-  .clip-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#2D2A26;cursor:pointer;border:none}
+  .otog{border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#7A6E5E;padding:4px 10px;border-radius:99px;cursor:pointer;font-size:9px;font-family:inherit;font-weight:800;outline:none}
+  .otog.on{background:#2D2A26;color:#FEF6EE;border-color:#2D2A26}
   canvas{display:block;width:100%;height:100%;touch-action:none}
 </style>
 </head>
@@ -48,8 +45,8 @@
 <canvas id="c"></canvas>
 <div id="ui-bot">
   <div class="info"><div><div class="info-l" id="il">TODAY</div><div class="info-d" id="id"></div></div><button class="info-r" id="ir" style="display:none">← today</button></div>
-  <div class="clip-wrap"><span>FULL</span><input type="range" class="clip-slider" id="clipSlider" min="0" max="100" value="0"><span>CLIP</span></div>
   <div class="vrow" id="vr"></div>
+  <button class="otog" id="orbTog">Explore: OFF</button>
   <div class="leg" id="lg"></div>
 </div>
 
@@ -108,16 +105,16 @@ function normA(a){return((a%(Math.PI*2))+(Math.PI*2))%(Math.PI*2)}
 var BG=[254/255,246/255,238/255];
 
 // ═══════════════ HELICOID CONSTANTS ═══════════════
-var YEARS=[2022,2023,2024,2025,2026];
+var YEARS=[2021,2022,2023,2024,2025,2026];
 var NUM_YEARS=YEARS.length;
 var PITCH=1.2;
 var helixH=NUM_YEARS*PITCH;
 var helixMidY=-helixH/2;
 var highlightYear=td.getFullYear();
 
+function yearAngFrac(ang){return normA(ang-jan1A)/(Math.PI*2)}
 function helixY(yearIdx,ang){
-  var frac=normA(ang)/(Math.PI*2);
-  return -(yearIdx+frac)*PITCH;
+  return -(yearIdx+yearAngFrac(ang))*PITCH;
 }
 function isInPastHelix(yearIdx,ang){
   var yr=YEARS[yearIdx];
@@ -138,9 +135,12 @@ var Sc=new THREE.Scene();
 // Group to hold all helicoid objects; rotated to lay helix horizontal
 var helixGroup=new THREE.Group();
 helixGroup.rotation.x=Math.PI/2; // Y-axis → Z-axis (helix extends along +Z)
+helixGroup.scale.x=-1; // mirror so coils match hand-drawn reference
 Sc.add(helixGroup);
 var isDesk=window.innerWidth>=900;
-var cam=new THREE.PerspectiveCamera(isDesk?32:40,1,.1,100);
+var ortSize=isDesk?3.5:4.2;
+var ortCam=new THREE.OrthographicCamera(-ortSize,ortSize,ortSize,-ortSize,.1,200);
+var activeCam=ortCam; // always orthographic for true isometric
 
 Sc.add(new THREE.AmbientLight(0xffffff,.85));
 var dl=new THREE.DirectionalLight(0xffffff,.4);dl.position.set(2,10,3);Sc.add(dl);
@@ -157,8 +157,8 @@ function buildHelicoid(yOff,normalUp){
   var RS=4;
   var hiIdx=YEARS.indexOf(highlightYear);
   for(var ai=0;ai<=TOTAL_SEGS;ai++){
-    var totalAng=(ai/TOTAL_SEGS)*Math.PI*2*NUM_YEARS;
-    var yearFrac=totalAng/(Math.PI*2);
+    var totalAng=jan1A+(ai/TOTAL_SEGS)*Math.PI*2*NUM_YEARS;
+    var yearFrac=(totalAng-jan1A)/(Math.PI*2);
     var yearIdx=Math.min(Math.floor(yearFrac),NUM_YEARS-1);
     var yBase=-yearFrac*PITCH;
     var c=colorAtAng(totalAng);
@@ -188,7 +188,7 @@ function buildHelicoid(yOff,normalUp){
   return geo;
 }
 
-var clipPlane=new THREE.Plane(new THREE.Vector3(0,0,-1),999); // world-space Z clip
+var clipPlane=new THREE.Plane(new THREE.Vector3(0,0,1),999); // world-space Z clip, clips toward viewer
 var clipPlaneEnabled=false;
 var ringMat=new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[clipPlane],clipShadows:true});
 var topMesh=new THREE.Mesh(buildHelicoid(DH/2,true),ringMat);
@@ -203,8 +203,8 @@ function buildHelicoidEdge(radius,faceOut){
   var v=[],c=[],n=[],idx=[];
   var hiIdx=YEARS.indexOf(highlightYear);
   for(var ai=0;ai<=TOTAL_SEGS;ai++){
-    var totalAng=(ai/TOTAL_SEGS)*Math.PI*2*NUM_YEARS;
-    var yearFrac=totalAng/(Math.PI*2);
+    var totalAng=jan1A+(ai/TOTAL_SEGS)*Math.PI*2*NUM_YEARS;
+    var yearFrac=(totalAng-jan1A)/(Math.PI*2);
     var yearIdx=Math.min(Math.floor(yearFrac),NUM_YEARS-1);
     var yBase=-yearFrac*PITCH;
     var cl=colorAtAng(totalAng);
@@ -245,7 +245,77 @@ var clipRect=new THREE.Mesh(clipRectGeo,clipRectMat);
 clipRect.visible=false;
 helixGroup.add(clipRect);
 
-// ═══════════════ TICK MARKS ═══════════════
+// Clip intersection line — radial line where plane meets the helicoid
+var clipLineMat=new THREE.LineBasicMaterial({color:0xE89B6C,linewidth:2});
+var clipLineGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(1,0,0)]);
+var clipLine=new THREE.Line(clipLineGeo,clipLineMat);
+clipLine.visible=false;
+helixGroup.add(clipLine);
+
+// Clip date label (sprite, stays readable)
+var clipDateSp=null;
+function updateClipDateLabel(txt){
+  if(clipDateSp){if(clipDateSp.material.map)clipDateSp.material.map.dispose();clipDateSp.material.dispose();helixGroup.remove(clipDateSp)}
+  var cv2=document.createElement("canvas"),cx=cv2.getContext("2d");
+  var fn="800 22px Nunito,sans-serif";cx.font=fn;
+  var w=Math.ceil(cx.measureText(txt).width)+12,h=30;
+  cv2.width=w*2;cv2.height=h*2;cx.scale(2,2);
+  cx.fillStyle="rgba(45,42,38,0.85)";
+  var rr=h/2;cx.beginPath();cx.moveTo(rr,0);cx.lineTo(w-rr,0);cx.arcTo(w,0,w,rr,rr);cx.lineTo(w,h-rr);cx.arcTo(w,h,w-rr,h,rr);cx.lineTo(rr,h);cx.arcTo(0,h,0,h-rr,rr);cx.lineTo(0,rr);cx.arcTo(0,0,rr,0,rr);cx.fill();
+  cx.font=fn;cx.fillStyle="#FEF6EE";cx.textAlign="center";cx.textBaseline="middle";cx.fillText(txt,w/2,h/2);
+  var tex=new THREE.CanvasTexture(cv2);tex.minFilter=THREE.LinearFilter;
+  clipDateSp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
+  clipDateSp.scale.set(w/100,h/100,1);
+  helixGroup.add(clipDateSp);
+}
+
+// 3D drag handle for clip plane — small sphere next to the clip rect
+var handleGeo=new THREE.SphereGeometry(0.12,16,16);
+var handleMat=new THREE.MeshBasicMaterial({color:0x2D2A26});
+var clipHandle=new THREE.Mesh(handleGeo,handleMat);
+// Invisible larger hit area for easier touch interaction
+var handleHitGeo=new THREE.SphereGeometry(0.35,8,8);
+var handleHitMat=new THREE.MeshBasicMaterial({visible:false});
+var clipHandleHit=new THREE.Mesh(handleHitGeo,handleHitMat);
+clipHandle.add(clipHandleHit);
+clipHandle.visible=false;
+helixGroup.add(clipHandle);
+
+// Compute date from clip Y position (local space)
+function clipYToDate(clipY){
+  var yf=-clipY/PITCH;
+  var yi=clamp(Math.floor(yf),0,NUM_YEARS-1);
+  var af=yf-yi;
+  var ang=jan1A+af*Math.PI*2;
+  var d=angDate(ang);
+  return{year:YEARS[yi],month:d.month,day:d.day,ang:ang,yi:yi,af:af};
+}
+
+// Update clip visuals (line, label, handle position)
+function updateClipVisuals(clipY){
+  var info=clipYToDate(clipY);
+  var ang=info.ang;
+  // Intersection line from IR to OR at the clip angle
+  var pts=[new THREE.Vector3(Math.cos(ang)*IR,clipY+DH/2+.006,Math.sin(ang)*IR),
+           new THREE.Vector3(Math.cos(ang)*OR,clipY+DH/2+.006,Math.sin(ang)*OR)];
+  clipLine.geometry.dispose();
+  clipLine.geometry=new THREE.BufferGeometry().setFromPoints(pts);
+  clipLine.visible=true;
+  // Date label
+  var txt=info.day+" "+info.month+" "+info.year;
+  updateClipDateLabel(txt);
+  clipDateSp.position.set(Math.cos(ang)*(OR+.45),clipY+DH/2,Math.sin(ang)*(OR+.45));
+  // Handle position — below the helicoid (local +Z maps to world -Y = screen bottom)
+  clipHandle.position.set(0,clipY,OR+0.5);
+  clipHandle.visible=true;
+}
+
+function hideClipVisuals(){
+  clipLine.visible=false;
+  clipHandle.visible=false;
+  if(clipDateSp){helixGroup.remove(clipDateSp);if(clipDateSp.material.map)clipDateSp.material.map.dispose();clipDateSp.material.dispose();clipDateSp=null}
+}
+
 // ═══════════════ TICK MARKS ═══════════════
 var tickGroup=new THREE.Group();helixGroup.add(tickGroup);
 function buildTicks(){
@@ -260,7 +330,7 @@ function buildTicks(){
       var mo=calMonths[mi];
       for(var d=1;d<=monthDays[mi];d++){
         var ang=dateAng(mo,d);
-        var angFrac=normA(ang)/(Math.PI*2);
+        var angFrac=yearAngFrac(ang);
         var y=-(yi+angFrac)*PITCH+DH/2+.004;
         var isMonthStart=(d===1);
         var isSeason=false;
@@ -296,14 +366,14 @@ function buildDividers(){
     // Month boundary lines from hub to color ring
     for(var i=0;i<12;i++){
       var a=DEC1+i*30*Math.PI/180;
-      var angFrac=normA(a)/(Math.PI*2);
+      var angFrac=yearAngFrac(a);
       var y=-(yi+angFrac)*PITCH+DH/2+.005;
       var op=faded?.03:.08;
       dG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a)*HUB_R,y,Math.sin(a)*HUB_R),new THREE.Vector3(Math.cos(a)*IR,y,Math.sin(a)*IR)]),new THREE.LineBasicMaterial({color:0x2D2A26,transparent:true,opacity:op})));
     }
     // Season boundaries on color ring
     SB.forEach(function(a){
-      var angFrac=normA(a)/(Math.PI*2);
+      var angFrac=yearAngFrac(a);
       var y=-(yi+angFrac)*PITCH+DH/2+.005;
       var op=faded?.08:.25;
       dG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a)*(IR+.02),y,Math.sin(a)*(IR+.02)),new THREE.Vector3(Math.cos(a)*(OR-.02),y,Math.sin(a)*(OR-.02))]),new THREE.LineBasicMaterial({color:0x2D2A26,transparent:true,opacity:op})));
@@ -321,79 +391,57 @@ function rebuildHelicoid(){
   buildTicks();buildDividers();buildLabels();
 }
 
-// ═══════════════ HAND ═══════════════
-var handOff=null;
-function hAng(){return handOff!==null?handOff:dateAng(td.getMonth()+1,td.getDate())}
-var hG=new THREE.Group();helixGroup.add(hG);
-var hL=TICK_OR+.05;
-// Thin elegant line (PlaneGeometry baked flat on XZ plane)
-var handW=.012,handMat=new THREE.MeshBasicMaterial({color:0xE89B6C,transparent:true,opacity:.7,side:THREE.DoubleSide});
-var shaftGeo=new THREE.PlaneGeometry(hL,handW);shaftGeo.rotateX(-Math.PI/2);
-var shaft=new THREE.Mesh(shaftGeo,handMat);
-hG.add(shaft);
-// Crosshair at endpoint (+)
-var chSize=.05,chW=.006;
-var chMat=new THREE.MeshBasicMaterial({color:0xE89B6C,transparent:true,opacity:.8,side:THREE.DoubleSide});
-var chHGeo=new THREE.PlaneGeometry(chSize,chW);chHGeo.rotateX(-Math.PI/2);
-var chH=new THREE.Mesh(chHGeo,chMat);hG.add(chH);
-var chVGeo=new THREE.PlaneGeometry(chW,chSize);chVGeo.rotateX(-Math.PI/2);
-var chV=new THREE.Mesh(chVGeo,chMat.clone());hG.add(chV);
-// Small flat center dot
-var ctrGeo=new THREE.CircleGeometry(.035,24);ctrGeo.rotateX(-Math.PI/2);
-var ctr=new THREE.Mesh(ctrGeo,new THREE.MeshBasicMaterial({color:0xE89B6C}));hG.add(ctr);
-// Keep tip reference for drag detection
-var tip={position:new THREE.Vector3()};
-function updH(){
-  var a=hAng();
-  var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
-  var angFrac=normA(a)/(Math.PI*2);
-  var y=-(yi+angFrac)*PITCH+DH/2+.015;
-  var tx=Math.cos(a)*hL,tz=Math.sin(a)*hL;
-  shaft.position.set(tx/2,y,tz/2);shaft.rotation.y=-a;
-  chH.position.set(tx,y,tz);chH.rotation.y=-a;
-  chV.position.set(tx,y,tz);chV.rotation.y=-a;
-  tip.position.set(tx,y,tz);ctr.position.y=y;
-}
-updH();
 
-// LABELS
+// LABELS — surface-mounted stickers on the helicoid
 var lG=new THREE.Group();helixGroup.add(lG);
-function mkS(txt,fs,col){
+function mkLabel(txt,fs,col){
   var cv2=document.createElement("canvas"),cx=cv2.getContext("2d");
   var fn="900 "+fs+"px Nunito,sans-serif";cx.font=fn;
-  var w=Math.ceil(cx.measureText(txt).width)+6,h=fs*1.3;
-  cv2.width=w*2;cv2.height=h*2;cx.scale(2,2);cx.font=fn;cx.fillStyle=col;cx.textAlign="center";cx.textBaseline="middle";cx.fillText(txt,w/2,h/2);
+  var tw=Math.ceil(cx.measureText(txt).width)+6,th=fs*1.3;
+  cv2.width=tw*2;cv2.height=th*2;cx.scale(2,2);cx.font=fn;cx.fillStyle=col;
+  cx.textAlign="center";cx.textBaseline="middle";cx.fillText(txt,tw/2,th/2);
   var tex=new THREE.CanvasTexture(cv2);tex.minFilter=THREE.LinearFilter;
-  var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
-  sp.scale.set(w/120,h/120,1);return sp;
+  var geo=new THREE.PlaneGeometry(tw/130,th/130);
+  var mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide,depthTest:false});
+  var m=new THREE.Mesh(geo,mat);
+  m.scale.x=-1; // counter helixGroup.scale.x=-1 mirror
+  return m;
+}
+function placeSurface(m,ang,y,rad){
+  m.position.set(Math.cos(ang)*rad,y+DH/2+.003,Math.sin(ang)*rad);
+  // Face local -Y (maps to world -Z = toward camera/2026 end)
+  m.rotation.order='XYZ';
+  m.rotation.x=Math.PI/2; // face -Y (toward camera)
+  m.rotation.y=-(ang+Math.PI/2); // align text along tangent
+  m.rotation.z=0;
 }
 function buildLabels(){
   while(lG.children.length){var c=lG.children[0];if(c.material){if(c.material.map)c.material.map.dispose();c.material.dispose()}lG.remove(c)}
   var hiIdx=YEARS.indexOf(highlightYear);
-  // Month labels for highlighted year
+  // Month labels on the helicoid surface for highlighted year
   MONTHS.forEach(function(m,i){
     var a=DEC1+(i*30+15)*Math.PI/180;
-    var angFrac=normA(a)/(Math.PI*2);
-    var y=-(hiIdx+angFrac)*PITCH+DH/2+.05;
-    var sp=mkS(m.a,18,"rgba(45,42,38,0.45)");
-    sp.position.set(Math.cos(a)*LABEL_R,y,Math.sin(a)*LABEL_R);lG.add(sp);
+    var angFrac=yearAngFrac(a);
+    var y=-(hiIdx+angFrac)*PITCH;
+    var lab=mkLabel(m.a,14,"rgba(45,42,38,0.55)");
+    placeSurface(lab,a,y,MR);lG.add(lab);
   });
-  // Season labels for highlighted year
+  // Season labels on the surface
   SEASONS.forEach(function(s,i){
     var a=SM[i];
-    var angFrac=normA(a)/(Math.PI*2);
-    var y=-(hiIdx+angFrac)*PITCH+DH/2;
-    var sp=mkS(s.name.toUpperCase(),14,"rgba(45,42,38,0.14)");
-    sp.position.set(Math.cos(a)*(OUTER_R+.25),y,Math.sin(a)*(OUTER_R+.25));lG.add(sp);
+    var angFrac=yearAngFrac(a);
+    var y=-(hiIdx+angFrac)*PITCH;
+    var lab=mkLabel(s.name.toUpperCase(),10,"rgba(45,42,38,0.2)");
+    placeSurface(lab,a,y,IR+.12);lG.add(lab);
   });
-  // Year labels on the side
+  // Year labels on the inner surface
   for(var yi=0;yi<NUM_YEARS;yi++){
     var ang=dateAng(6,15);
-    var angFrac=normA(ang)/(Math.PI*2);
+    var angFrac=yearAngFrac(ang);
     var y=-(yi+angFrac)*PITCH;
     var col=yi===hiIdx?"rgba(45,42,38,0.8)":"rgba(45,42,38,0.25)";
-    var sp=mkS(String(YEARS[yi]),yi===hiIdx?22:16,col);
-    sp.position.set(Math.cos(ang)*(OR+.35),y,Math.sin(ang)*(OR+.35));lG.add(sp);
+    var lab=mkLabel(String(YEARS[yi]),yi===hiIdx?18:13,col);
+    placeSurface(lab,ang,y,IR-.05);lG.add(lab);
   }
 }
 buildLabels();
@@ -403,83 +451,86 @@ buildLabels();
 // Helix center in world space: (0, 0, helixMidY)
 var helixCenterZ=helixMidY;
 var CB=Math.PI/2;
-var defD=isDesk?14:18;
 // Spherical around Y-axis, centered at (0,0,helixCenterZ)
-var cT=CB-Math.PI/4,cP=.55,cD=defD,tT=CB-Math.PI/4,tP=.55,tD=defD;
+var cT=CB+3*Math.PI/4,cP=.55,tT=CB+3*Math.PI/4,tP=.55;
 var orb=false,orbS={x:0,y:0},oTS=0,oPS=0,oCX=0,oCY=0,oPX=0,oPY=0,orbP=false;
 var pin=false,pSD=0,pDD=0;
+var isAxisView=false;
 function updC(){
-  cT+=(tT-cT)*.1;cP+=(tP-cP)*.1;cD+=(tD-cD)*.1;
-  var p=clamp(cP,.05,Math.PI/2-.01);
-  cam.position.set(cD*Math.sin(p)*Math.cos(cT),cD*Math.cos(p),helixCenterZ+cD*Math.sin(p)*Math.sin(cT));
-  cam.lookAt(0,0,helixCenterZ);
-}
-
-function getHandPlaneY(){var yi=YEARS.indexOf(highlightYear);return -(yi+.5)*PITCH}
-var rP=new THREE.Plane(new THREE.Vector3(0,1,0),-getHandPlaneY());
-function updateRayPlane(){rP=new THREE.Plane(new THREE.Vector3(0,1,0),-getHandPlaneY())}
-var _invMat=new THREE.Matrix4();
-function wPt(px,py){
-  var r=cv.getBoundingClientRect();
-  var mx=((px-r.left)/r.width)*2-1;
-  var my=-((py-r.top)/r.height)*2+1;
-  var rc=new THREE.Raycaster();
-  rc.setFromCamera(new THREE.Vector2(mx,my),cam);
-  // Transform ray into helixGroup local space for intersection
-  _invMat.copy(helixGroup.matrixWorld).invert();
-  rc.ray.applyMatrix4(_invMat);
-  var pt=new THREE.Vector3();
-  if(rc.ray.intersectPlane(rP,pt))return pt;
-  return null;
+  cT+=(tT-cT)*.1;cP+=(tP-cP)*.1;
+  if(isAxisView){
+    // Axis view: look along helix axis from 2026 end
+    ortCam.position.set(0,0,helixCenterZ-50);
+    ortCam.lookAt(0,0,helixCenterZ);
+  }else{
+    // Isometric: true orthographic, no perspective convergence
+    var p=clamp(cP,.05,Math.PI/2-.01);
+    var d=50;
+    ortCam.position.set(d*Math.sin(p)*Math.cos(cT),d*Math.cos(p),helixCenterZ+d*Math.sin(p)*Math.sin(cT));
+    ortCam.lookAt(0,0,helixCenterZ);
+  }
 }
 
 // INTERACTION
-var ptrs=new Map(),dH=false,DZ=8,lastHA=null;
+var orbLocked=true; // orbit locked by default
+var clipDrag=false,clipDragStartSX=0,clipDragStartSY=0,clipDragStartVal=0;
+var axDirX=0,axDirY=0; // screen-space direction of helix axis
+var ptrs=new Map(),lastHA=null;
 var tapStart=null;
-function moveH(nr){
-  var na=normA(nr);
-  handOff=nr;lastHA=na;updH();updI();
-}
 
 cv.addEventListener("pointerdown",function(e){
   cv.setPointerCapture(e.pointerId);
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   tapStart={x:e.clientX,y:e.clientY,t:Date.now(),id:e.pointerId};
   if(ptrs.size===1){
-    var pt=wPt(e.clientX,e.clientY);
-    if(pt){
-      var d=Math.sqrt(pt.x*pt.x+pt.z*pt.z);
-      var tp=tip.position;
-      var dt=Math.sqrt((pt.x-tp.x)*(pt.x-tp.x)+(pt.z-tp.z)*(pt.z-tp.z));
-      if(dt<.6||d<IR*.95){
-        dH=true;cv.style.cursor="grabbing";
-        var na=Math.atan2(pt.z,pt.x);
-        if(handOff===null){handOff=hAng();lastHA=normA(handOff)}
-        moveH(na);buildB();return;
+    // Check if clicking near the clip handle (3D drag)
+    if(clipHandle.visible){
+      var rc2=new THREE.Raycaster();
+      var r2=cv.getBoundingClientRect();
+      var mx2=((e.clientX-r2.left)/r2.width)*2-1,my2=-((e.clientY-r2.top)/r2.height)*2+1;
+      rc2.setFromCamera(new THREE.Vector2(mx2,my2),activeCam);
+      var hits=rc2.intersectObject(clipHandle,true);
+      if(hits.length>0){
+        clipDrag=true;clipDragStartSX=e.clientX;clipDragStartSY=e.clientY;clipDragStartVal=clipHandle.position.y;
+        // Compute screen-space direction of helix axis (world Z)
+        var pa=new THREE.Vector3(0,0,helixCenterZ-1),pb=new THREE.Vector3(0,0,helixCenterZ+1);
+        pa.project(activeCam);pb.project(activeCam);
+        var sxa=(pa.x+1)/2*cv.clientWidth,sya=(-pa.y+1)/2*cv.clientHeight;
+        var sxb=(pb.x+1)/2*cv.clientWidth,syb=(-pb.y+1)/2*cv.clientHeight;
+        var al=Math.hypot(sxb-sxa,syb-sya);
+        axDirX=(sxb-sxa)/al;axDirY=(syb-sya)/al;
+        cv.style.cursor="grabbing";return;
       }
     }
-    orbP=true;orb=false;orbS={x:e.clientX,y:e.clientY};oTS=tT;oPS=tP;
-  }else if(ptrs.size===2){
-    orb=false;orbP=false;dH=false;pin=true;
+    if(!orbLocked){orbP=true;orb=false;orbS={x:e.clientX,y:e.clientY};oTS=tT;oPS=tP}
+  }else if(ptrs.size===2&&!orbLocked){
+    orb=false;orbP=false;pin=true;
     var ps=Array.from(ptrs.values());
-    pSD=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y);pDD=tD;
+    pSD=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y);pDD=ortSize;
   }
 });
 
 cv.addEventListener("pointermove",function(e){
   if(!ptrs.has(e.pointerId))return;
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(dH){var pt=wPt(e.clientX,e.clientY);if(pt)moveH(Math.atan2(pt.z,pt.x));return}
-  if(pin&&ptrs.size===2){var ps=Array.from(ptrs.values());tD=clamp(pDD*(pSD/Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y)),isDesk?4:5,25)}
+  if(clipDrag){
+    // Project mouse delta onto helix axis screen direction
+    var mdx=e.clientX-clipDragStartSX,mdy=e.clientY-clipDragStartSY;
+    var proj=mdx*axDirX+mdy*axDirY; // signed pixels along axis
+    var sc=helixH/300;
+    var newY=clamp(clipDragStartVal+proj*sc,-helixH,0);
+    updateClipFromValue(-newY);return;
+  }
+  if(pin&&ptrs.size===2){var ps=Array.from(ptrs.values());ortSize=clamp(pDD*(pSD/Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y)),1.5,10);resize()}
   else if(ptrs.size===1){
     var dx=e.clientX-orbS.x,dy=e.clientY-orbS.y;
-    if(orbP&&!orb&&Math.hypot(dx,dy)>5){orb=true;orbP=false;orbS={x:e.clientX,y:e.clientY};oPS=tP;var c3=new THREE.Vector3(0,0,helixCenterZ);c3.project(cam);oCX=(c3.x+1)/2*cv.clientWidth;oCY=(-c3.y+1)/2*cv.clientHeight;oPX=e.clientX;oPY=e.clientY}
+    if(orbP&&!orb&&Math.hypot(dx,dy)>5){orb=true;orbP=false;orbS={x:e.clientX,y:e.clientY};oPS=tP;var c3=new THREE.Vector3(0,0,helixCenterZ);c3.project(activeCam);oCX=(c3.x+1)/2*cv.clientWidth;oCY=(-c3.y+1)/2*cv.clientHeight;oPX=e.clientX;oPY=e.clientY}
     if(orb){var ppx=oPX-oCX,ppy=oPY-oCY,cpx=e.clientX-oCX,cpy=e.clientY-oCY;var cross=ppx*cpy-ppy*cpx,dot=ppx*cpx+ppy*cpy;var dAng=Math.atan2(cross,dot);tT-=dAng;tP=clamp(tP+(e.clientY-oPY)*.008,.01,Math.PI/2-.01);oPX=e.clientX;oPY=e.clientY}
   }
 });
 
 cv.addEventListener("pointerup",function(e){
-  if(tapStart&&tapStart.id===e.pointerId&&!dH&&!orb){
+  if(tapStart&&tapStart.id===e.pointerId&&!orb){
     var dx=e.clientX-tapStart.x,dy=e.clientY-tapStart.y;
     if(Math.hypot(dx,dy)<8&&Date.now()-tapStart.t<300){
       lastTapTime=Date.now();lastTapPos={x:e.clientX,y:e.clientY};
@@ -487,55 +538,63 @@ cv.addEventListener("pointerup",function(e){
   }
   tapStart=null;
   ptrs.delete(e.pointerId);
-  if(dH){dH=false;cv.style.cursor="";buildB()}
+  if(clipDrag){clipDrag=false;cv.style.cursor="";return}
   if(!ptrs.size){orb=false;pin=false;orbP=false}
   if(ptrs.size<2)pin=false;
 });
 
 cv.addEventListener("pointercancel",function(e){
   ptrs.delete(e.pointerId);
-  if(!ptrs.size){orb=false;pin=false;orbP=false;dH=false}
+  if(!ptrs.size){orb=false;pin=false;orbP=false}
 });
 
-cv.addEventListener("wheel",function(e){tD=clamp(tD+e.deltaY*.004,isDesk?4:5,25);e.preventDefault()},{passive:false});
+cv.addEventListener("wheel",function(e){if(!orbLocked){ortSize=clamp(ortSize+e.deltaY*.005,1.5,10);resize()}e.preventDefault()},{passive:false});
 
 // Ensure touch events don't scroll on mobile
 cv.style.touchAction="none";
 cv.addEventListener("touchstart",function(e){e.preventDefault()},{passive:false});
 cv.addEventListener("touchmove",function(e){e.preventDefault()},{passive:false});
 
-// VIEWS — only Isometric and Axis
-var VW=isDesk?[
-  {n:"Isometric",p:.55,t:CB-Math.PI/4,d:14},
-  {n:"Axis",p:Math.PI/2-.02,t:CB,d:12}
-]:[
-  {n:"Isometric",p:.55,t:CB-Math.PI/4,d:18},
-  {n:"Axis",p:Math.PI/2-.02,t:CB,d:16}
+// VIEWS — only Isometric and Axis (both orthographic)
+var VW=[
+  {n:"Isometric",p:.55,t:CB+3*Math.PI/4,axis:false},
+  {n:"Axis",p:.55,t:CB+3*Math.PI/4,axis:true}
 ];
 var aV=0;
 function setV(i){
-  aV=i;tP=VW[i].p;tD=VW[i].d;tT=VW[i].t;
+  aV=i;tP=VW[i].p;tT=VW[i].t;
+  isAxisView=!!VW[i].axis;
   buildV();
 }
-function resetAll(){handOff=null;lastHA=null;highlightYear=td.getFullYear();rebuildHelicoid();updateRayPlane();updH();updI();buildB();buildY();setV(0);tD=defD;document.getElementById("clipSlider").value=0;updateClipFromSlider(0)}
+function resetAll(){highlightYear=td.getFullYear();rebuildHelicoid();updI();buildB();buildY();setV(0);updateClipFromValue(999)}
 
 // CLIPPING PLANE CONTROL
-function updateClipFromSlider(val){
-  if(val<=0){clipPlane.constant=999;clipRect.visible=false;clipPlaneEnabled=false;return}
-  // val 0-100: progressively clip from oldest (y=0) to newest (y=-helixH)
-  var c=lerp(0.3,-(helixH+0.3),val/100);
+// normal (0,0,1): clips where z < -c. Plane surface at world z = -c.
+// c = clipPlane.constant. Local Y of clip = -c.
+function updateClipFromValue(c){
+  if(c>helixH+1){clipPlane.constant=999;clipRect.visible=false;clipPlaneEnabled=false;hideClipVisuals();return}
+  c=clamp(c,-0.3,helixH+0.3);
   clipPlane.constant=c;
-  clipRect.position.y=c;
+  var localY=-c;
+  clipRect.position.y=localY;
   clipRect.visible=true;
   clipPlaneEnabled=true;
+  updateClipVisuals(localY);
 }
-document.getElementById("clipSlider").addEventListener("input",function(e){updateClipFromSlider(+e.target.value)})
+
+// Orbit toggle
+var orbTogBtn=document.getElementById("orbTog");
+orbTogBtn.addEventListener("click",function(){
+  orbLocked=!orbLocked;
+  orbTogBtn.textContent="Explore: "+(orbLocked?"OFF":"ON");
+  orbTogBtn.className="otog"+(orbLocked?"":" on");
+  if(orbLocked){setV(aV)} // snap back to current view
+})
 
 function setHighlight(y){
   if(y===highlightYear)return;
   highlightYear=y;
-  if(y!==td.getFullYear()){handOff=dateAng(1,1);lastHA=normA(handOff)}else{handOff=null;lastHA=null}
-  rebuildHelicoid();updateRayPlane();updH();updI();buildB();buildY();
+  rebuildHelicoid();updI();buildB();buildY();
 }
 
 function buildY(){
@@ -549,9 +608,8 @@ function buildY(){
 
 function buildB(){
   var el=document.getElementById("btns");el.innerHTML="";
-  var df=handOff===null;
   var ab=document.createElement("button");ab.className="b";ab.textContent="Reset";
-  ab.style.background=df?"#2D2A26":"#F0E6D8";ab.style.color=df?"#FEF6EE":"#7A6E5E";
+  ab.style.background="#2D2A26";ab.style.color="#FEF6EE";
   ab.addEventListener("click",resetAll);el.appendChild(ab);
   SEASONS.forEach(function(s,i){
     var b=document.createElement("button");b.className="b";b.textContent=s.name;
@@ -570,10 +628,9 @@ function buildV(){
 }
 
 function updI(){
-  var isT=handOff===null&&highlightYear===td.getFullYear();
-  var dd=isT?{month:mN[td.getMonth()],day:td.getDate()}:angDate(hAng());
-  document.getElementById("il").textContent=isT?"TODAY":"SELECTED";
-  document.getElementById("id").textContent=isT?td.getDate()+" "+mN[td.getMonth()]+" "+td.getFullYear():dd.day+" "+dd.month+" "+highlightYear;
+  var isT=highlightYear===td.getFullYear();
+  document.getElementById("il").textContent=isT?"TODAY":"YEAR";
+  document.getElementById("id").textContent=isT?td.getDate()+" "+mN[td.getMonth()]+" "+td.getFullYear():highlightYear;
   document.getElementById("ir").style.display=isT?"none":"block";
 }
 document.getElementById("ir").addEventListener("click",resetAll);
@@ -588,13 +645,15 @@ var lastTapTime=0,lastTapPos={x:0,y:0};
 
 // ═══════════════ RESIZE & ANIMATION ═══════════════
 
-function resize(){var w=window.innerWidth,h=window.innerHeight;R.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}
+function resize(){var w=window.innerWidth,h=window.innerHeight;R.setSize(w,h);var a=w/h;ortCam.left=-ortSize*a;ortCam.right=ortSize*a;ortCam.top=ortSize;ortCam.bottom=-ortSize;ortCam.updateProjectionMatrix()}
 window.addEventListener("resize",resize);resize();
 
-if(isDesk){document.getElementById("sub-hint").textContent="drag to orbit · scroll to zoom · click year to highlight · slide to clip"}
+if(isDesk){document.getElementById("sub-hint").textContent="drag handle to clip · click Explore to orbit · click year to highlight"}
 
 helixGroup.updateMatrixWorld(true);
-(function anim(){requestAnimationFrame(anim);updC();R.render(Sc,cam)})();
+// Initialize clip plane visible at the front (2026 end)
+updateClipFromValue(helixH+0.2);
+(function anim(){requestAnimationFrame(anim);updC();R.render(Sc,activeCam)})();
 buildB();buildV();buildY();updI();
 
 })();
