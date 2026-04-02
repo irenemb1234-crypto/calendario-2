@@ -138,10 +138,9 @@ helixGroup.rotation.x=Math.PI/2; // Y-axis → Z-axis (helix extends along +Z)
 helixGroup.scale.x=-1; // mirror so coils match hand-drawn reference
 Sc.add(helixGroup);
 var isDesk=window.innerWidth>=900;
-var cam=new THREE.PerspectiveCamera(isDesk?32:40,1,.1,100);
-var ortSize=isDesk?2.8:3.2;
-var ortCam=new THREE.OrthographicCamera(-ortSize,ortSize,ortSize,-ortSize,.1,100);
-var activeCam=cam; // switches between cam and ortCam
+var ortSize=isDesk?3.5:4.2;
+var ortCam=new THREE.OrthographicCamera(-ortSize,ortSize,ortSize,-ortSize,.1,200);
+var activeCam=ortCam; // always orthographic for true isometric
 
 Sc.add(new THREE.AmbientLight(0xffffff,.85));
 var dl=new THREE.DirectionalLight(0xffffff,.4);dl.position.set(2,10,3);Sc.add(dl);
@@ -271,9 +270,14 @@ function updateClipDateLabel(txt){
 }
 
 // 3D drag handle for clip plane — small sphere next to the clip rect
-var handleGeo=new THREE.SphereGeometry(0.08,16,16);
+var handleGeo=new THREE.SphereGeometry(0.12,16,16);
 var handleMat=new THREE.MeshBasicMaterial({color:0x2D2A26});
 var clipHandle=new THREE.Mesh(handleGeo,handleMat);
+// Invisible larger hit area for easier touch interaction
+var handleHitGeo=new THREE.SphereGeometry(0.35,8,8);
+var handleHitMat=new THREE.MeshBasicMaterial({visible:false});
+var clipHandleHit=new THREE.Mesh(handleHitGeo,handleHitMat);
+clipHandle.add(clipHandleHit);
 clipHandle.visible=false;
 helixGroup.add(clipHandle);
 
@@ -301,8 +305,8 @@ function updateClipVisuals(clipY){
   var txt=info.day+" "+info.month+" "+info.year;
   updateClipDateLabel(txt);
   clipDateSp.position.set(Math.cos(ang)*(OR+.45),clipY+DH/2,Math.sin(ang)*(OR+.45));
-  // Handle position — at outer edge of clip rect
-  clipHandle.position.set(0,clipY,OR+0.4);
+  // Handle position — at right side of clip rect
+  clipHandle.position.set(-(OR+0.4),clipY,0);
   clipHandle.visible=true;
 }
 
@@ -439,9 +443,11 @@ function mkLabel(txt,fs,col){
 }
 function placeSurface(m,ang,y,rad){
   m.position.set(Math.cos(ang)*rad,y+DH/2+.003,Math.sin(ang)*rad);
-  m.rotation.order='YXZ';
-  m.rotation.y=ang-Math.PI/2;
-  m.rotation.x=-Math.PI/2;
+  // Label lies flat on the top surface, text along tangent direction
+  m.rotation.order='XYZ';
+  m.rotation.x=-Math.PI/2; // lay flat (face up)
+  m.rotation.y=0;
+  m.rotation.z=-(ang+Math.PI/2); // align text along tangent
 }
 function buildLabels(){
   while(lG.children.length){var c=lG.children[0];if(c.material){if(c.material.map)c.material.map.dispose();c.material.dispose()}lG.remove(c)}
@@ -479,19 +485,24 @@ buildLabels();
 // Helix center in world space: (0, 0, helixMidY)
 var helixCenterZ=helixMidY;
 var CB=Math.PI/2;
-var defD=isDesk?14:18;
 // Spherical around Y-axis, centered at (0,0,helixCenterZ)
-var cT=CB+3*Math.PI/4,cP=.55,cD=defD,tT=CB+3*Math.PI/4,tP=.55,tD=defD;
+var cT=CB+3*Math.PI/4,cP=.55,tT=CB+3*Math.PI/4,tP=.55;
 var orb=false,orbS={x:0,y:0},oTS=0,oPS=0,oCX=0,oCY=0,oPX=0,oPY=0,orbP=false;
 var pin=false,pSD=0,pDD=0;
+var isAxisView=false;
 function updC(){
-  cT+=(tT-cT)*.1;cP+=(tP-cP)*.1;cD+=(tD-cD)*.1;
-  var p=clamp(cP,.05,Math.PI/2-.01);
-  cam.position.set(cD*Math.sin(p)*Math.cos(cT),cD*Math.cos(p),helixCenterZ+cD*Math.sin(p)*Math.sin(cT));
-  cam.lookAt(0,0,helixCenterZ);
-  // Keep ortho cam along helix axis from 2026 end for flat circle view
-  ortCam.position.set(0,0,helixCenterZ-20);
-  ortCam.lookAt(0,0,helixCenterZ);
+  cT+=(tT-cT)*.1;cP+=(tP-cP)*.1;
+  if(isAxisView){
+    // Axis view: look along helix axis from 2026 end
+    ortCam.position.set(0,0,helixCenterZ-50);
+    ortCam.lookAt(0,0,helixCenterZ);
+  }else{
+    // Isometric: true orthographic, no perspective convergence
+    var p=clamp(cP,.05,Math.PI/2-.01);
+    var d=50;
+    ortCam.position.set(d*Math.sin(p)*Math.cos(cT),d*Math.cos(p),helixCenterZ+d*Math.sin(p)*Math.sin(cT));
+    ortCam.lookAt(0,0,helixCenterZ);
+  }
 }
 
 function getHandPlaneY(){var yi=YEARS.indexOf(highlightYear);return -(yi+.5)*PITCH}
@@ -533,8 +544,8 @@ cv.addEventListener("pointerdown",function(e){
       var r2=cv.getBoundingClientRect();
       var mx2=((e.clientX-r2.left)/r2.width)*2-1,my2=-((e.clientY-r2.top)/r2.height)*2+1;
       rc2.setFromCamera(new THREE.Vector2(mx2,my2),activeCam);
-      var hits=rc2.intersectObject(clipHandle,false);
-      if(hits.length>0&&hits[0].distance<50){
+      var hits=rc2.intersectObject(clipHandle,true);
+      if(hits.length>0){
         clipDrag=true;clipDragStartY=e.clientY;clipDragStartVal=clipHandle.position.y;
         cv.style.cursor="grabbing";return;
       }
@@ -555,7 +566,7 @@ cv.addEventListener("pointerdown",function(e){
   }else if(ptrs.size===2&&!orbLocked){
     orb=false;orbP=false;dH=false;pin=true;
     var ps=Array.from(ptrs.values());
-    pSD=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y);pDD=tD;
+    pSD=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y);pDD=ortSize;
   }
 });
 
@@ -571,7 +582,7 @@ cv.addEventListener("pointermove",function(e){
     updateClipFromValue(c);return;
   }
   if(dH){var pt=wPt(e.clientX,e.clientY);if(pt)moveH(Math.atan2(pt.z,pt.x));return}
-  if(pin&&ptrs.size===2){var ps=Array.from(ptrs.values());tD=clamp(pDD*(pSD/Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y)),isDesk?4:5,25)}
+  if(pin&&ptrs.size===2){var ps=Array.from(ptrs.values());ortSize=clamp(pDD*(pSD/Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y)),1.5,10);resize()}
   else if(ptrs.size===1){
     var dx=e.clientX-orbS.x,dy=e.clientY-orbS.y;
     if(orbP&&!orb&&Math.hypot(dx,dy)>5){orb=true;orbP=false;orbS={x:e.clientX,y:e.clientY};oPS=tP;var c3=new THREE.Vector3(0,0,helixCenterZ);c3.project(activeCam);oCX=(c3.x+1)/2*cv.clientWidth;oCY=(-c3.y+1)/2*cv.clientHeight;oPX=e.clientX;oPY=e.clientY}
@@ -599,31 +610,27 @@ cv.addEventListener("pointercancel",function(e){
   if(!ptrs.size){orb=false;pin=false;orbP=false;dH=false}
 });
 
-cv.addEventListener("wheel",function(e){if(!orbLocked){tD=clamp(tD+e.deltaY*.004,isDesk?4:5,25)}e.preventDefault()},{passive:false});
+cv.addEventListener("wheel",function(e){if(!orbLocked){ortSize=clamp(ortSize+e.deltaY*.005,1.5,10);resize()}e.preventDefault()},{passive:false});
 
 // Ensure touch events don't scroll on mobile
 cv.style.touchAction="none";
 cv.addEventListener("touchstart",function(e){e.preventDefault()},{passive:false});
 cv.addEventListener("touchmove",function(e){e.preventDefault()},{passive:false});
 
-// VIEWS — only Isometric and Axis
-var VW=isDesk?[
-  {n:"Isometric",p:.55,t:CB+3*Math.PI/4,d:14},
-  {n:"Axis",p:.55,t:CB+3*Math.PI/4,d:14,ortho:true}
-]:[
-  {n:"Isometric",p:.55,t:CB+3*Math.PI/4,d:18},
-  {n:"Axis",p:.55,t:CB+3*Math.PI/4,d:18,ortho:true}
+// VIEWS — only Isometric and Axis (both orthographic)
+var VW=[
+  {n:"Isometric",p:.55,t:CB+3*Math.PI/4,axis:false},
+  {n:"Axis",p:.55,t:CB+3*Math.PI/4,axis:true}
 ];
 var aV=0;
 function setV(i){
-  aV=i;tP=VW[i].p;tD=VW[i].d;tT=VW[i].t;
-  // Axis view uses orthographic camera for flat circle (no tunnel)
-  activeCam=VW[i].ortho?ortCam:cam;
+  aV=i;tP=VW[i].p;tT=VW[i].t;
+  isAxisView=!!VW[i].axis;
   // Hand only visible in axis view
-  hG.visible=!!VW[i].ortho;
+  hG.visible=isAxisView;
   buildV();
 }
-function resetAll(){handOff=null;lastHA=null;highlightYear=td.getFullYear();rebuildHelicoid();updateRayPlane();updH();updI();buildB();buildY();setV(0);tD=defD;updateClipFromValue(999)}
+function resetAll(){handOff=null;lastHA=null;highlightYear=td.getFullYear();rebuildHelicoid();updateRayPlane();updH();updI();buildB();buildY();setV(0);updateClipFromValue(999)}
 
 // CLIPPING PLANE CONTROL
 // normal (0,0,1): clips where z < -c. Plane surface at world z = -c.
@@ -705,7 +712,7 @@ var lastTapTime=0,lastTapPos={x:0,y:0};
 
 // ═══════════════ RESIZE & ANIMATION ═══════════════
 
-function resize(){var w=window.innerWidth,h=window.innerHeight;R.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix();var a=w/h;ortCam.left=-ortSize*a;ortCam.right=ortSize*a;ortCam.top=ortSize;ortCam.bottom=-ortSize;ortCam.updateProjectionMatrix()}
+function resize(){var w=window.innerWidth,h=window.innerHeight;R.setSize(w,h);var a=w/h;ortCam.left=-ortSize*a;ortCam.right=ortSize*a;ortCam.top=ortSize;ortCam.bottom=-ortSize;ortCam.updateProjectionMatrix()}
 window.addEventListener("resize",resize);resize();
 
 if(isDesk){document.getElementById("sub-hint").textContent="drag handle to clip · click Explore to orbit · click year to highlight"}
