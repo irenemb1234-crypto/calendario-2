@@ -38,7 +38,7 @@
 <body>
 <div id="ui-top">
   <h1>Seasons</h1>
-  <p class="sub" id="sub-hint">orbit to explore · tap center to move hand · double-tap for detail</p>
+  <p class="sub" id="sub-hint">drag handle to clip · tap Explore to orbit · tap year to highlight</p>
   <div class="brow" id="btns"></div>
   <div class="yrow" id="yrow"></div>
 </div>
@@ -391,41 +391,6 @@ function rebuildHelicoid(){
   buildTicks();buildDividers();buildLabels();
 }
 
-// ═══════════════ HAND ═══════════════
-var handOff=null;
-function hAng(){return handOff!==null?handOff:dateAng(td.getMonth()+1,td.getDate())}
-var hG=new THREE.Group();hG.visible=false;helixGroup.add(hG);
-var hL=TICK_OR+.05;
-// Thin elegant line (PlaneGeometry baked flat on XZ plane)
-var handW=.012,handMat=new THREE.MeshBasicMaterial({color:0xE89B6C,transparent:true,opacity:.7,side:THREE.DoubleSide});
-var shaftGeo=new THREE.PlaneGeometry(hL,handW);shaftGeo.rotateX(-Math.PI/2);
-var shaft=new THREE.Mesh(shaftGeo,handMat);
-hG.add(shaft);
-// Crosshair at endpoint (+)
-var chSize=.05,chW=.006;
-var chMat=new THREE.MeshBasicMaterial({color:0xE89B6C,transparent:true,opacity:.8,side:THREE.DoubleSide});
-var chHGeo=new THREE.PlaneGeometry(chSize,chW);chHGeo.rotateX(-Math.PI/2);
-var chH=new THREE.Mesh(chHGeo,chMat);hG.add(chH);
-var chVGeo=new THREE.PlaneGeometry(chW,chSize);chVGeo.rotateX(-Math.PI/2);
-var chV=new THREE.Mesh(chVGeo,chMat.clone());hG.add(chV);
-// Small flat center dot
-var ctrGeo=new THREE.CircleGeometry(.035,24);ctrGeo.rotateX(-Math.PI/2);
-var ctr=new THREE.Mesh(ctrGeo,new THREE.MeshBasicMaterial({color:0xE89B6C}));hG.add(ctr);
-// Keep tip reference for drag detection
-var tip={position:new THREE.Vector3()};
-function updH(){
-  var a=hAng();
-  var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
-  var angFrac=yearAngFrac(a);
-  var y=-(yi+angFrac)*PITCH+DH/2+.015;
-  var tx=Math.cos(a)*hL,tz=Math.sin(a)*hL;
-  shaft.position.set(tx/2,y,tz/2);shaft.rotation.y=-a;
-  chH.position.set(tx,y,tz);chH.rotation.y=-a;
-  chV.position.set(tx,y,tz);chV.rotation.y=-a;
-  tip.position.set(tx,y,tz);ctr.position.y=y;
-}
-updH();
-
 // LABELS — surface-mounted stickers on the helicoid
 var lG=new THREE.Group();helixGroup.add(lG);
 function mkLabel(txt,fs,col){
@@ -505,34 +470,12 @@ function updC(){
   }
 }
 
-function getHandPlaneY(){var yi=YEARS.indexOf(highlightYear);return -(yi+.5)*PITCH}
-var rP=new THREE.Plane(new THREE.Vector3(0,1,0),-getHandPlaneY());
-function updateRayPlane(){rP=new THREE.Plane(new THREE.Vector3(0,1,0),-getHandPlaneY())}
-var _invMat=new THREE.Matrix4();
-function wPt(px,py){
-  var r=cv.getBoundingClientRect();
-  var mx=((px-r.left)/r.width)*2-1;
-  var my=-((py-r.top)/r.height)*2+1;
-  var rc=new THREE.Raycaster();
-  rc.setFromCamera(new THREE.Vector2(mx,my),activeCam);
-  // Transform ray into helixGroup local space for intersection
-  _invMat.copy(helixGroup.matrixWorld).invert();
-  rc.ray.applyMatrix4(_invMat);
-  var pt=new THREE.Vector3();
-  if(rc.ray.intersectPlane(rP,pt))return pt;
-  return null;
-}
-
 // INTERACTION
 var orbLocked=true; // orbit locked by default
 var clipDrag=false,clipDragStartSX=0,clipDragStartSY=0,clipDragStartVal=0;
 var axDirX=0,axDirY=0; // screen-space direction of helix axis
-var ptrs=new Map(),dH=false,DZ=8,lastHA=null;
+var ptrs=new Map();
 var tapStart=null;
-function moveH(nr){
-  var na=normA(nr);
-  handOff=nr;lastHA=na;updH();updI();
-}
 
 cv.addEventListener("pointerdown",function(e){
   cv.setPointerCapture(e.pointerId);
@@ -558,21 +501,9 @@ cv.addEventListener("pointerdown",function(e){
         cv.style.cursor="grabbing";return;
       }
     }
-    var pt=wPt(e.clientX,e.clientY);
-    if(pt){
-      var d=Math.sqrt(pt.x*pt.x+pt.z*pt.z);
-      var tp=tip.position;
-      var dt=Math.sqrt((pt.x-tp.x)*(pt.x-tp.x)+(pt.z-tp.z)*(pt.z-tp.z));
-      if(dt<.6||d<IR*.95){
-        dH=true;cv.style.cursor="grabbing";
-        var na=Math.atan2(pt.z,pt.x);
-        if(handOff===null){handOff=hAng();lastHA=normA(handOff)}
-        moveH(na);buildB();return;
-      }
-    }
     if(!orbLocked){orbP=true;orb=false;orbS={x:e.clientX,y:e.clientY};oTS=tT;oPS=tP}
   }else if(ptrs.size===2&&!orbLocked){
-    orb=false;orbP=false;dH=false;pin=true;
+    orb=false;orbP=false;pin=true;
     var ps=Array.from(ptrs.values());
     pSD=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y);pDD=ortSize;
   }
@@ -589,7 +520,6 @@ cv.addEventListener("pointermove",function(e){
     var newY=clamp(clipDragStartVal+proj*sc,-helixH,0);
     updateClipFromValue(-newY);return;
   }
-  if(dH){var pt=wPt(e.clientX,e.clientY);if(pt)moveH(Math.atan2(pt.z,pt.x));return}
   if(pin&&ptrs.size===2){var ps=Array.from(ptrs.values());ortSize=clamp(pDD*(pSD/Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y)),1.5,10);resize()}
   else if(ptrs.size===1){
     var dx=e.clientX-orbS.x,dy=e.clientY-orbS.y;
@@ -599,7 +529,7 @@ cv.addEventListener("pointermove",function(e){
 });
 
 cv.addEventListener("pointerup",function(e){
-  if(tapStart&&tapStart.id===e.pointerId&&!dH&&!orb){
+  if(tapStart&&tapStart.id===e.pointerId&&!orb){
     var dx=e.clientX-tapStart.x,dy=e.clientY-tapStart.y;
     if(Math.hypot(dx,dy)<8&&Date.now()-tapStart.t<300){
       lastTapTime=Date.now();lastTapPos={x:e.clientX,y:e.clientY};
@@ -608,14 +538,13 @@ cv.addEventListener("pointerup",function(e){
   tapStart=null;
   ptrs.delete(e.pointerId);
   if(clipDrag){clipDrag=false;cv.style.cursor="";return}
-  if(dH){dH=false;cv.style.cursor="";buildB()}
   if(!ptrs.size){orb=false;pin=false;orbP=false}
   if(ptrs.size<2)pin=false;
 });
 
 cv.addEventListener("pointercancel",function(e){
   ptrs.delete(e.pointerId);
-  if(!ptrs.size){orb=false;pin=false;orbP=false;dH=false}
+  if(!ptrs.size){orb=false;pin=false;orbP=false}
 });
 
 cv.addEventListener("wheel",function(e){if(!orbLocked){ortSize=clamp(ortSize+e.deltaY*.005,1.5,10);resize()}e.preventDefault()},{passive:false});
@@ -634,11 +563,9 @@ var aV=0;
 function setV(i){
   aV=i;tP=VW[i].p;tT=VW[i].t;
   isAxisView=!!VW[i].axis;
-  // Hand only visible in axis view
-  hG.visible=isAxisView;
   buildV();
 }
-function resetAll(){handOff=null;lastHA=null;highlightYear=td.getFullYear();rebuildHelicoid();updateRayPlane();updH();updI();buildB();buildY();setV(0);updateClipFromValue(999)}
+function resetAll(){highlightYear=td.getFullYear();rebuildHelicoid();updI();buildB();buildY();setV(0);updateClipFromValue(999)}
 
 // CLIPPING PLANE CONTROL
 // normal (0,0,1): clips where z < -c. Plane surface at world z = -c.
@@ -666,8 +593,7 @@ orbTogBtn.addEventListener("click",function(){
 function setHighlight(y){
   if(y===highlightYear)return;
   highlightYear=y;
-  if(y!==td.getFullYear()){handOff=dateAng(1,1);lastHA=normA(handOff)}else{handOff=null;lastHA=null}
-  rebuildHelicoid();updateRayPlane();updH();updI();buildB();buildY();
+  rebuildHelicoid();updI();buildB();buildY();
 }
 
 function buildY(){
@@ -681,7 +607,7 @@ function buildY(){
 
 function buildB(){
   var el=document.getElementById("btns");el.innerHTML="";
-  var df=handOff===null;
+  var df=highlightYear===td.getFullYear();
   var ab=document.createElement("button");ab.className="b";ab.textContent="Reset";
   ab.style.background=df?"#2D2A26":"#F0E6D8";ab.style.color=df?"#FEF6EE":"#7A6E5E";
   ab.addEventListener("click",resetAll);el.appendChild(ab);
@@ -702,10 +628,9 @@ function buildV(){
 }
 
 function updI(){
-  var isT=handOff===null&&highlightYear===td.getFullYear();
-  var dd=isT?{month:mN[td.getMonth()],day:td.getDate()}:angDate(hAng());
+  var isT=highlightYear===td.getFullYear();
   document.getElementById("il").textContent=isT?"TODAY":"SELECTED";
-  document.getElementById("id").textContent=isT?td.getDate()+" "+mN[td.getMonth()]+" "+td.getFullYear():dd.day+" "+dd.month+" "+highlightYear;
+  document.getElementById("id").textContent=isT?td.getDate()+" "+mN[td.getMonth()]+" "+td.getFullYear():highlightYear;
   document.getElementById("ir").style.display=isT?"none":"block";
 }
 document.getElementById("ir").addEventListener("click",resetAll);
