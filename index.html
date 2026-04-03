@@ -391,7 +391,7 @@ function rebuildHelicoid(){
   buildTicks();buildDividers();buildLabels();
 }
 
-// LABELS — surface-mounted stickers on the helicoid
+// LABELS — billboard sprites that always face the camera
 var lG=new THREE.Group();helixGroup.add(lG);
 function mkLabel(txt,fs,col){
   var cv2=document.createElement("canvas"),cx=cv2.getContext("2d");
@@ -400,19 +400,12 @@ function mkLabel(txt,fs,col){
   cv2.width=tw*2;cv2.height=th*2;cx.scale(2,2);cx.font=fn;cx.fillStyle=col;
   cx.textAlign="center";cx.textBaseline="middle";cx.fillText(txt,tw/2,th/2);
   var tex=new THREE.CanvasTexture(cv2);tex.minFilter=THREE.LinearFilter;
-  var geo=new THREE.PlaneGeometry(tw/130,th/130);
-  var mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide,depthTest:false});
-  var m=new THREE.Mesh(geo,mat);
-  m.scale.set(-1,-1,1); // counter helixGroup X-mirror + flip Y for right-side-up
-  return m;
+  var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
+  sp.scale.set(-tw/130,th/130,1); // negative X counters helixGroup.scale.x=-1
+  return sp;
 }
-function placeSurface(m,ang,y,rad){
+function placeLabel(m,ang,y,rad){
   m.position.set(Math.cos(ang)*rad,y+DH/2+.003,Math.sin(ang)*rad);
-  // Face local -Y (maps to world -Z = toward camera/2026 end)
-  m.rotation.order='XYZ';
-  m.rotation.x=Math.PI/2; // face -Y (toward camera)
-  m.rotation.y=-(ang+Math.PI/2); // align text along tangent
-  m.rotation.z=0;
 }
 function buildLabels(){
   while(lG.children.length){var c=lG.children[0];if(c.material){if(c.material.map)c.material.map.dispose();c.material.dispose()}lG.remove(c)}
@@ -423,7 +416,7 @@ function buildLabels(){
     var angFrac=yearAngFrac(a);
     var y=-(hiIdx+angFrac)*PITCH;
     var lab=mkLabel(m.a,14,"rgba(45,42,38,0.55)");
-    placeSurface(lab,a,y,MR);lG.add(lab);
+    placeLabel(lab,a,y,MR);lG.add(lab);
   });
   // Season labels on the surface
   SEASONS.forEach(function(s,i){
@@ -431,7 +424,7 @@ function buildLabels(){
     var angFrac=yearAngFrac(a);
     var y=-(hiIdx+angFrac)*PITCH;
     var lab=mkLabel(s.name.toUpperCase(),10,"rgba(45,42,38,0.2)");
-    placeSurface(lab,a,y,IR+.12);lG.add(lab);
+    placeLabel(lab,a,y,IR+.12);lG.add(lab);
   });
   // Year labels on the inner surface
   for(var yi=0;yi<NUM_YEARS;yi++){
@@ -440,7 +433,7 @@ function buildLabels(){
     var y=-(yi+angFrac)*PITCH;
     var col=yi===hiIdx?"rgba(45,42,38,0.8)":"rgba(45,42,38,0.25)";
     var lab=mkLabel(String(YEARS[yi]),yi===hiIdx?18:13,col);
-    placeSurface(lab,ang,y,IR-.05);lG.add(lab);
+    placeLabel(lab,ang,y,IR-.05);lG.add(lab);
   }
 }
 buildLabels();
@@ -556,8 +549,8 @@ cv.addEventListener("touchmove",function(e){e.preventDefault()},{passive:false})
 
 // VIEWS — all orthographic
 var VW=[
-  {n:"Elevation",p:.55,t:CB+3*Math.PI/4,axis:false},
-  {n:"Isometric",p:Math.PI/2-.01,t:CB+Math.PI,axis:false},
+  {n:"Elevation",p:Math.PI/2-.01,t:0,axis:false},
+  {n:"Isometric",p:.55,t:CB+3*Math.PI/4,axis:false},
   {n:"Axis",p:.55,t:CB+3*Math.PI/4,axis:true}
 ];
 var aV=0;
