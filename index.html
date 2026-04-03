@@ -506,7 +506,7 @@ cv.addEventListener("pointerdown",function(e){
       var yearZ=-(yi+0.5)*PITCH;
       var cp=new THREE.Vector3(0,0,yearZ);cp.project(activeCam);
       circDrag={cx:(cp.x+1)/2*cv.clientWidth,cy:(-cp.y+1)/2*cv.clientHeight};
-      var ang=Math.atan2(-(e.clientY-circDrag.cy),e.clientX-circDrag.cx);
+      var ang=Math.atan2(-(e.clientY-circDrag.cy),-(e.clientX-circDrag.cx));
       var clipC=axisAngToClip(ang,yi);
       updateClipFromValue(clipC);
       return;
@@ -543,7 +543,7 @@ cv.addEventListener("pointermove",function(e){
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(circDrag){
     // Axis view: circular drag
-    var ang=Math.atan2(-(e.clientY-circDrag.cy),e.clientX-circDrag.cx);
+    var ang=Math.atan2(-(e.clientY-circDrag.cy),-(e.clientX-circDrag.cx));
     var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
     var clipC=axisAngToClip(ang,yi);
     updateClipFromValue(clipC);return;
@@ -606,6 +606,9 @@ function setV(i){
     var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
     updateClipFromValue((yi+0.999)*PITCH);
     clipHandle.visible=false;
+  }else{
+    // Leaving axis view: restore handle visibility if clip is active
+    if(clipPlaneEnabled){clipHandle.visible=true}
   }
   buildV();
 }
