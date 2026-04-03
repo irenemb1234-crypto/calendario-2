@@ -287,6 +287,7 @@ function clipYToDate(clipY){
   var yf=-clipY/PITCH;
   var yi=clamp(Math.floor(yf),0,NUM_YEARS-1);
   var af=yf-yi;
+  if(af>=0.999){return{year:YEARS[yi],month:"Dec",day:31,ang:dateAng(12,31),yi:yi,af:af}}
   var ang=jan1A+af*Math.PI*2;
   var d=angDate(ang);
   return{year:YEARS[yi],month:d.month,day:d.day,ang:ang,yi:yi,af:af};
