@@ -271,11 +271,11 @@ function updateClipDateLabel(txt){
 }
 
 // 3D drag handle for clip plane — small sphere next to the clip rect
-var handleGeo=new THREE.SphereGeometry(0.12,16,16);
+var handleGeo=new THREE.SphereGeometry(0.048,16,16);
 var handleMat=new THREE.MeshBasicMaterial({color:0x2D2A26});
 var clipHandle=new THREE.Mesh(handleGeo,handleMat);
 // Invisible larger hit area for easier touch interaction
-var handleHitGeo=new THREE.SphereGeometry(0.35,8,8);
+var handleHitGeo=new THREE.SphereGeometry(0.14,8,8);
 var handleHitMat=new THREE.MeshBasicMaterial({visible:false});
 var clipHandleHit=new THREE.Mesh(handleHitGeo,handleHitMat);
 clipHandle.add(clipHandleHit);
