@@ -296,15 +296,15 @@ function updateClipVisuals(clipY){
   var info=clipYToDate(clipY);
   var ang=info.ang;
   // Intersection line from IR to OR at the clip angle
-  var pts=[new THREE.Vector3(Math.cos(ang)*IR,clipY+DH/2+.006,Math.sin(ang)*IR),
-           new THREE.Vector3(Math.cos(ang)*OR,clipY+DH/2+.006,Math.sin(ang)*OR)];
+  var pts=[new THREE.Vector3(Math.cos(ang)*IR,clipY+.002,Math.sin(ang)*IR),
+           new THREE.Vector3(Math.cos(ang)*OR,clipY+.002,Math.sin(ang)*OR)];
   clipLine.geometry.dispose();
   clipLine.geometry=new THREE.BufferGeometry().setFromPoints(pts);
   clipLine.visible=true;
   // Date label
   var txt=info.day+" "+info.month+" "+info.year;
   updateClipDateLabel(txt);
-  clipDateSp.position.set(Math.cos(ang)*(OR+.45),clipY+DH/2,Math.sin(ang)*(OR+.45));
+  clipDateSp.position.set(Math.cos(ang)*(OR+.45),clipY+.002,Math.sin(ang)*(OR+.45));
   // Handle position — below the helicoid (local +Z maps to world -Y = screen bottom)
   clipHandle.position.set(0,clipY,OR+0.5);
   clipHandle.visible=true;
@@ -412,7 +412,7 @@ function placeSurface(m,ang,y,rad){
   m.rotation.order='XYZ';
   m.rotation.x=Math.PI/2; // face -Y (toward camera)
   m.rotation.y=-(ang+Math.PI/2); // align text along tangent
-  m.rotation.z=0;
+  m.rotation.z=Math.PI; // flip right-side up
 }
 function buildLabels(){
   while(lG.children.length){var c=lG.children[0];if(c.material){if(c.material.map)c.material.map.dispose();c.material.dispose()}lG.remove(c)}
