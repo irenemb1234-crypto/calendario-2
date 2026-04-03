@@ -308,8 +308,9 @@ function updateClipVisuals(clipY){
   updateClipDateLabel(txt);
   clipDateSp.position.set(Math.cos(ang)*(OR+.45),clipY+.002,Math.sin(ang)*(OR+.45));
   // Handle position — below the helicoid (local +Z maps to world -Y = screen bottom)
+  // Hide handle in axis view (circular drag is used instead)
   clipHandle.position.set(0,clipY,OR+0.5);
-  clipHandle.visible=true;
+  clipHandle.visible=!isAxisView;
 }
 
 function hideClipVisuals(){
@@ -453,9 +454,11 @@ var isAxisView=false;
 function updC(){
   cT+=(tT-cT)*.1;cP+=(tP-cP)*.1;
   if(isAxisView){
-    // Axis view: look along helix axis from 2026 end
-    ortCam.position.set(0,0,helixCenterZ-50);
-    ortCam.lookAt(0,0,helixCenterZ);
+    // Axis view: look along helix axis at highlighted year's coil
+    var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
+    var yearZ=-(yi+0.5)*PITCH; // center of that year's coil in local Y = world Z
+    ortCam.position.set(0,0,yearZ-50);
+    ortCam.lookAt(0,0,yearZ);
   }else{
     // Isometric: true orthographic, no perspective convergence
     var p=clamp(cP,.05,Math.PI/2-.01);
@@ -465,10 +468,28 @@ function updC(){
   }
 }
 
+// Convert screen angle (from atan2) to clip value constrained to a single year
+// In axis view, camera looks along -Z. Screen X = world -X (due to helixGroup.scale.x=-1), screen Y = world Y.
+// The helicoid angle in local space: cos(ang)*r for X, sin(ang)*r for Z.
+// From the axis camera (looking along +Z toward viewer), screen coords map:
+//   screen X → world -X → local X (but mirrored by scale.x=-1, so local X = world X... need to check)
+// We'll compute: pointer angle on screen → helicoid angle → clip value for that year.
+function axisAngToClip(screenAng,yi){
+  // screenAng is atan2(-(clientY-cy), clientX-cx) — standard math angle on screen
+  // In axis view camera looks along -Z. Screen right = world -X (camera right).
+  // helixGroup.scale.x = -1, so local X = -world X. Local coords: cos(localAng), sin(localAng).
+  // World X = -cos(localAng). Screen right = -world X = cos(localAng). So screen angle ≈ local angle.
+  var localAng=screenAng;
+  var af=yearAngFrac(localAng);
+  af=clamp(af,0,0.999);
+  return (yi+af)*PITCH;
+}
+
 // INTERACTION
 var orbLocked=true; // orbit locked by default
 var clipDrag=false,clipDragStartSX=0,clipDragStartSY=0,clipDragStartVal=0;
 var axDirX=0,axDirY=0; // screen-space direction of helix axis
+var circDrag=false; // circular drag in axis view
 var ptrs=new Map();
 var tapStart=null;
 
@@ -477,7 +498,20 @@ cv.addEventListener("pointerdown",function(e){
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   tapStart={x:e.clientX,y:e.clientY,t:Date.now(),id:e.pointerId};
   if(ptrs.size===1){
-    // Check if clicking near the clip handle (3D drag)
+    if(isAxisView){
+      // Axis view: circular drag — any touch/click starts it
+      circDrag=true;cv.style.cursor="grabbing";
+      // Compute angle from pointer to center of coil on screen
+      var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
+      var yearZ=-(yi+0.5)*PITCH;
+      var cp=new THREE.Vector3(0,0,yearZ);cp.project(activeCam);
+      circDrag={cx:(cp.x+1)/2*cv.clientWidth,cy:(-cp.y+1)/2*cv.clientHeight};
+      var ang=Math.atan2(-(e.clientY-circDrag.cy),e.clientX-circDrag.cx);
+      var clipC=axisAngToClip(ang,yi);
+      updateClipFromValue(clipC);
+      return;
+    }
+    // Check if clicking near the clip handle (3D drag) — elevation/isometric only
     if(clipHandle.visible){
       var rc2=new THREE.Raycaster();
       var r2=cv.getBoundingClientRect();
@@ -507,6 +541,13 @@ cv.addEventListener("pointerdown",function(e){
 cv.addEventListener("pointermove",function(e){
   if(!ptrs.has(e.pointerId))return;
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(circDrag){
+    // Axis view: circular drag
+    var ang=Math.atan2(-(e.clientY-circDrag.cy),e.clientX-circDrag.cx);
+    var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
+    var clipC=axisAngToClip(ang,yi);
+    updateClipFromValue(clipC);return;
+  }
   if(clipDrag){
     // Project mouse delta onto helix axis screen direction
     var mdx=e.clientX-clipDragStartSX,mdy=e.clientY-clipDragStartSY;
@@ -532,6 +573,7 @@ cv.addEventListener("pointerup",function(e){
   }
   tapStart=null;
   ptrs.delete(e.pointerId);
+  if(circDrag){circDrag=false;cv.style.cursor="";return}
   if(clipDrag){clipDrag=false;cv.style.cursor="";return}
   if(!ptrs.size){orb=false;pin=false;orbP=false}
   if(ptrs.size<2)pin=false;
@@ -559,6 +601,12 @@ var aV=1;
 function setV(i){
   aV=i;tP=VW[i].p;tT=VW[i].t;
   isAxisView=!!VW[i].axis;
+  if(isAxisView){
+    // Entering axis view: set clip to end of highlighted year
+    var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
+    updateClipFromValue((yi+0.999)*PITCH);
+    clipHandle.visible=false;
+  }
   buildV();
 }
 function resetAll(){highlightYear=td.getFullYear();rebuildHelicoid();updI();buildB();buildY();setV(1);updateClipFromValue(999)}
@@ -604,6 +652,11 @@ function setHighlight(y){
   if(y===highlightYear)return;
   highlightYear=y;
   rebuildHelicoid();updI();buildB();buildY();
+  // In axis view, reset clip to end of new year
+  if(isAxisView){
+    var yi=YEARS.indexOf(y);if(yi<0)yi=NUM_YEARS-1;
+    updateClipFromValue((yi+0.999)*PITCH);
+  }
 }
 
 function buildY(){
