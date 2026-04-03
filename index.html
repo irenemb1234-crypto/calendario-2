@@ -45,6 +45,7 @@
 <canvas id="c"></canvas>
 <div id="ui-bot">
   <div class="info"><div><div class="info-l" id="il">TODAY</div><div class="info-d" id="id"></div></div><button class="info-r" id="ir" style="display:none">← today</button></div>
+  <div style="display:flex;align-items:center;gap:6px"><label style="font-size:9px;font-weight:800;color:#B8A692">Go to:</label><input type="date" id="datePick" min="2021-01-01" max="2026-12-31" style="font-family:inherit;font-size:10px;font-weight:700;border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#2D2A26;border-radius:99px;padding:3px 8px;outline:none"></div>
   <div class="vrow" id="vr"></div>
   <button class="otog" id="orbTog">Explore: OFF</button>
   <div class="leg" id="lg"></div>
@@ -257,8 +258,8 @@ var clipDateSp=null;
 function updateClipDateLabel(txt){
   if(clipDateSp){if(clipDateSp.material.map)clipDateSp.material.map.dispose();clipDateSp.material.dispose();helixGroup.remove(clipDateSp)}
   var cv2=document.createElement("canvas"),cx=cv2.getContext("2d");
-  var fn="800 22px Nunito,sans-serif";cx.font=fn;
-  var w=Math.ceil(cx.measureText(txt).width)+12,h=30;
+  var fn="800 11px Nunito,sans-serif";cx.font=fn;
+  var w=Math.ceil(cx.measureText(txt).width)+6,h=15;
   cv2.width=w*2;cv2.height=h*2;cx.scale(2,2);
   cx.fillStyle="rgba(45,42,38,0.85)";
   var rr=h/2;cx.beginPath();cx.moveTo(rr,0);cx.lineTo(w-rr,0);cx.arcTo(w,0,w,rr,rr);cx.lineTo(w,h-rr);cx.arcTo(w,h,w-rr,h,rr);cx.lineTo(rr,h);cx.arcTo(0,h,0,h-rr,rr);cx.lineTo(0,rr);cx.arcTo(0,0,rr,0,rr);cx.fill();
@@ -575,6 +576,20 @@ function updateClipFromValue(c){
   updateClipVisuals(localY);
 }
 
+// Date picker → clip plane
+function dateToClipValue(dateStr){
+  var parts=dateStr.split("-"),yr=parseInt(parts[0]),mo=parseInt(parts[1]),dy=parseInt(parts[2]);
+  var yi=YEARS.indexOf(yr);if(yi<0)return 999;
+  var ang=dateAng(mo,dy);
+  var af=yearAngFrac(ang);
+  return (yi+af)*PITCH;
+}
+document.getElementById("datePick").addEventListener("change",function(){
+  if(!this.value)return;
+  var c=dateToClipValue(this.value);
+  updateClipFromValue(c);
+});
+
 // Orbit toggle
 var orbTogBtn=document.getElementById("orbTog");
 orbTogBtn.addEventListener("click",function(){
@@ -645,8 +660,8 @@ window.addEventListener("resize",resize);resize();
 if(isDesk){document.getElementById("sub-hint").textContent="drag handle to clip · click Explore to orbit · click year to highlight"}
 
 helixGroup.updateMatrixWorld(true);
-// Initialize clip plane visible at the front (2026 end)
-updateClipFromValue(helixH+0.2);
+// Initialize with clip plane hidden
+updateClipFromValue(999);
 (function anim(){requestAnimationFrame(anim);updC();R.render(Sc,activeCam)})();
 buildB();buildV();buildY();updI();
 
