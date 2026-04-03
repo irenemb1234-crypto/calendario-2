@@ -660,8 +660,8 @@ window.addEventListener("resize",resize);resize();
 if(isDesk){document.getElementById("sub-hint").textContent="drag handle to clip · click Explore to orbit · click year to highlight"}
 
 helixGroup.updateMatrixWorld(true);
-// Initialize with clip plane hidden
-updateClipFromValue(999);
+// Initialize clip plane at the end (31 Dec 2026)
+updateClipFromValue(helixH);
 (function anim(){requestAnimationFrame(anim);updC();R.render(Sc,activeCam)})();
 buildB();buildV();buildY();updI();
 
