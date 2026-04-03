@@ -553,13 +553,13 @@ var VW=[
   {n:"Isometric",p:.55,t:CB+3*Math.PI/4,axis:false},
   {n:"Axis",p:.55,t:CB+3*Math.PI/4,axis:true}
 ];
-var aV=0;
+var aV=1;
 function setV(i){
   aV=i;tP=VW[i].p;tT=VW[i].t;
   isAxisView=!!VW[i].axis;
   buildV();
 }
-function resetAll(){highlightYear=td.getFullYear();rebuildHelicoid();updI();buildB();buildY();setV(0);updateClipFromValue(999)}
+function resetAll(){highlightYear=td.getFullYear();rebuildHelicoid();updI();buildB();buildY();setV(1);updateClipFromValue(999)}
 
 // CLIPPING PLANE CONTROL
 // normal (0,0,1): clips where z < -c. Plane surface at world z = -c.
