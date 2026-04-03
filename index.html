@@ -403,7 +403,7 @@ function mkLabel(txt,fs,col){
   var geo=new THREE.PlaneGeometry(tw/130,th/130);
   var mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide,depthTest:false});
   var m=new THREE.Mesh(geo,mat);
-  m.scale.x=-1; // counter helixGroup.scale.x=-1 mirror
+  m.scale.set(-1,-1,1); // counter helixGroup X-mirror + flip Y for right-side-up
   return m;
 }
 function placeSurface(m,ang,y,rad){
@@ -412,7 +412,7 @@ function placeSurface(m,ang,y,rad){
   m.rotation.order='XYZ';
   m.rotation.x=Math.PI/2; // face -Y (toward camera)
   m.rotation.y=-(ang+Math.PI/2); // align text along tangent
-  m.rotation.z=Math.PI; // flip right-side up
+  m.rotation.z=0;
 }
 function buildLabels(){
   while(lG.children.length){var c=lG.children[0];if(c.material){if(c.material.map)c.material.map.dispose();c.material.dispose()}lG.remove(c)}
