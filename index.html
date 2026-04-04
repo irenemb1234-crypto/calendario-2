@@ -612,7 +612,7 @@ function setV(i){
   }
   buildV();
 }
-function resetAll(){highlightYear=td.getFullYear();rebuildHelicoid();updI();buildB();buildY();setV(1);updateClipFromValue(999)}
+function resetAll(){highlightYear=td.getFullYear();rebuildHelicoid();updI();buildB();buildY();updateClipFromValue(999)}
 
 // CLIPPING PLANE CONTROL
 // normal (0,0,1): clips where z < -c. Plane surface at world z = -c.
@@ -677,12 +677,6 @@ function buildB(){
   var ab=document.createElement("button");ab.className="b";ab.textContent="Reset";
   ab.style.background=df?"#2D2A26":"#F0E6D8";ab.style.color=df?"#FEF6EE":"#7A6E5E";
   ab.addEventListener("click",resetAll);el.appendChild(ab);
-  SEASONS.forEach(function(s,i){
-    var b=document.createElement("button");b.className="b";b.textContent=s.name;
-    b.style.background=s.pill;b.style.color="#5A4D3B";
-    b.addEventListener("click",function(){tT=-SM[i]+Math.PI;if(tP<.3)tP=.5});
-    el.appendChild(b);
-  });
 }
 
 function buildV(){
