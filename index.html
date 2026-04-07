@@ -190,6 +190,7 @@ function buildHelicoid(yOff,normalUp){
 }
 
 var clipPlane=new THREE.Plane(new THREE.Vector3(0,0,1),999); // world-space Z clip, clips toward viewer
+var edgeClipPlane=new THREE.Plane(new THREE.Vector3(0,0,1),999); // tighter clip for edges to match top-surface cut
 var clipPlaneEnabled=false;
 var ringMat=new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[clipPlane],clipShadows:true});
 var topMesh=new THREE.Mesh(buildHelicoid(DH/2,true),ringMat);
@@ -232,9 +233,9 @@ function buildHelicoidEdge(radius,faceOut){
   geo.setAttribute("normal",new THREE.Float32BufferAttribute(n,3));
   geo.setIndex(idx);return geo;
 }
-var outerEdgeMesh=new THREE.Mesh(buildHelicoidEdge(OR,true),new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[clipPlane]}));
+var outerEdgeMesh=new THREE.Mesh(buildHelicoidEdge(OR,true),new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[edgeClipPlane]}));
 helixGroup.add(outerEdgeMesh);
-var innerEdgeMesh=new THREE.Mesh(buildHelicoidEdge(IR,false),new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[clipPlane]}));
+var innerEdgeMesh=new THREE.Mesh(buildHelicoidEdge(IR,false),new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[edgeClipPlane]}));
 helixGroup.add(innerEdgeMesh);
 
 // Clip plane visualization rectangle (in local space, perpendicular to helix Y-axis)
@@ -618,9 +619,10 @@ function resetAll(){highlightYear=td.getFullYear();rebuildHelicoid();updI();buil
 // normal (0,0,1): clips where z < -c. Plane surface at world z = -c.
 // c = clipPlane.constant. Local Y of clip = -c.
 function updateClipFromValue(c){
-  if(c>helixH+1){clipPlane.constant=999;clipRect.visible=false;clipPlaneEnabled=false;hideClipVisuals();return}
+  if(c>helixH+1){clipPlane.constant=999;edgeClipPlane.constant=999;clipRect.visible=false;clipPlaneEnabled=false;hideClipVisuals();return}
   c=clamp(c,-0.3,helixH+0.3);
   clipPlane.constant=c;
+  edgeClipPlane.constant=c+DH; // clip edges at top-surface boundary so they don't extend past the cut line
   var localY=-c;
   clipRect.position.y=localY;
   clipRect.visible=true;
