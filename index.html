@@ -195,7 +195,7 @@ var clipPlaneEnabled=false;
 var ringMat=new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[clipPlane],clipShadows:true});
 var topMesh=new THREE.Mesh(buildHelicoid(DH/2,true),ringMat);
 helixGroup.add(topMesh);
-var botMat=new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[clipPlane],clipShadows:true});
+var botMat=new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[edgeClipPlane],clipShadows:true});
 var botMesh=new THREE.Mesh(buildHelicoid(-DH/2,false),botMat);
 helixGroup.add(botMesh);
 
