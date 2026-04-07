@@ -284,7 +284,7 @@ helixGroup.add(clipHandle);
 
 // Compute date from clip Y position (local space)
 function clipYToDate(clipY){
-  var yf=-clipY/PITCH;
+  var yf=-(clipY-DH/2)/PITCH; // account for top-surface offset
   var yi=clamp(Math.floor(yf),0,NUM_YEARS-1);
   var af=yf-yi;
   if(af>=0.999){return{year:YEARS[yi],month:"Dec",day:31,ang:dateAng(12,31),yi:yi,af:af}}
@@ -482,7 +482,7 @@ function axisAngToClip(screenAng,yi){
   var localAng=screenAng;
   var af=yearAngFrac(localAng);
   af=clamp(af,0,0.999);
-  return (yi+af)*PITCH;
+  return (yi+af)*PITCH-DH/2; // offset so clip cuts top surface at correct angle
 }
 
 // INTERACTION
@@ -604,7 +604,7 @@ function setV(i){
   if(isAxisView){
     // Entering axis view: set clip to end of highlighted year
     var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
-    updateClipFromValue((yi+0.999)*PITCH);
+    updateClipFromValue((yi+0.999)*PITCH-DH/2);
     clipHandle.visible=false;
   }else{
     // Leaving axis view: restore handle visibility if clip is active
@@ -634,7 +634,7 @@ function dateToClipValue(dateStr){
   var yi=YEARS.indexOf(yr);if(yi<0)return 999;
   var ang=dateAng(mo,dy);
   var af=yearAngFrac(ang);
-  return (yi+af)*PITCH;
+  return (yi+af)*PITCH-DH/2; // offset so clip cuts top surface at correct angle
 }
 document.getElementById("datePick").addEventListener("change",function(){
   if(!this.value)return;
@@ -658,7 +658,7 @@ function setHighlight(y){
   // In axis view, reset clip to end of new year
   if(isAxisView){
     var yi=YEARS.indexOf(y);if(yi<0)yi=NUM_YEARS-1;
-    updateClipFromValue((yi+0.999)*PITCH);
+    updateClipFromValue((yi+0.999)*PITCH-DH/2);
   }
 }
 
