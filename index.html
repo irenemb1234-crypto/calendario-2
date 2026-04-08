@@ -280,10 +280,15 @@ function updateEndCap(seg){
   capMesh.visible=true;
 }
 
-// Clip intersection line — radial line where plane meets the helicoid
-var clipLineMat=new THREE.LineBasicMaterial({color:0xE89B6C,linewidth:2});
-var clipLineGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(1,0,0)]);
-var clipLine=new THREE.Line(clipLineGeo,clipLineMat);
+// Clip intersection line — thin mesh strip, always visible (depthTest off)
+var CLIP_LINE_W=0.012; // half-width of the strip
+var clipLineVerts=new Float32Array(4*3);
+var clipLineGeo=new THREE.BufferGeometry();
+clipLineGeo.setAttribute("position",new THREE.BufferAttribute(clipLineVerts,3));
+clipLineGeo.setIndex([0,1,2,1,3,2]);
+var clipLineMat=new THREE.MeshBasicMaterial({color:0xE89B6C,depthTest:false,transparent:true,opacity:0.9,side:THREE.DoubleSide});
+var clipLine=new THREE.Mesh(clipLineGeo,clipLineMat);
+clipLine.renderOrder=999;
 clipLine.visible=false;
 helixGroup.add(clipLine);
 
@@ -324,11 +329,15 @@ function updateClipVisuals(seg){
   var yBase=-yearFrac*PITCH;
   var d=angDate(totalAng);
   var ca=Math.cos(totalAng),sa=Math.sin(totalAng);
-  // Intersection line from IR to OR at the cut angle (on top surface)
-  var pts=[new THREE.Vector3(ca*IR,yBase+DH/2+.002,sa*IR),
-           new THREE.Vector3(ca*OR,yBase+DH/2+.002,sa*OR)];
-  clipLine.geometry.dispose();
-  clipLine.geometry=new THREE.BufferGeometry().setFromPoints(pts);
+  // Thin strip from IR to OR at the cut angle, perpendicular to top surface
+  var yTop=yBase+DH/2+.003;
+  var pos=clipLineGeo.attributes.position.array;
+  // Two edges offset along Y (up/down) to give the line visible width
+  pos[0]=ca*IR;pos[1]=yTop+CLIP_LINE_W;pos[2]=sa*IR;
+  pos[3]=ca*OR;pos[4]=yTop+CLIP_LINE_W;pos[5]=sa*OR;
+  pos[6]=ca*IR;pos[7]=yTop-CLIP_LINE_W;pos[8]=sa*IR;
+  pos[9]=ca*OR;pos[10]=yTop-CLIP_LINE_W;pos[11]=sa*OR;
+  clipLineGeo.attributes.position.needsUpdate=true;
   clipLine.visible=true;
   var txt=d.day+" "+d.month+" "+YEARS[yi];
   updateClipDateLabel(txt);
