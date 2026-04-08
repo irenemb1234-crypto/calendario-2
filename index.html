@@ -131,7 +131,7 @@ var cv=document.getElementById("c");
 var R=new THREE.WebGLRenderer({canvas:cv,antialias:true});
 R.setPixelRatio(Math.min(window.devicePixelRatio,2));
 R.setClearColor(0xFEF6EE,1);
-R.localClippingEnabled=true;
+R.localClippingEnabled=false;
 var Sc=new THREE.Scene();
 // Group to hold all helicoid objects; rotated to lay helix horizontal
 var helixGroup=new THREE.Group();
@@ -189,13 +189,19 @@ function buildHelicoid(yOff,normalUp){
   return geo;
 }
 
-var clipPlane=new THREE.Plane(new THREE.Vector3(0,0,1),999); // world-space Z clip, clips toward viewer
-var edgeClipPlane=new THREE.Plane(new THREE.Vector3(0,0,1),999); // tighter clip for edges to match top-surface cut
-var clipPlaneEnabled=false;
-var ringMat=new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[clipPlane],clipShadows:true});
+// ═══════════════ DRAW-RANGE CLIPPING ═══════════════
+// Instead of flat clip planes (which cut different surfaces at different angles),
+// we limit geometry via drawRange so all surfaces end at the exact same angle.
+var SURF_RS=4; // must match RS inside buildHelicoid
+var SURF_IDX_PER_SEG=SURF_RS*2*3; // 24 indices per angular segment for surfaces
+var EDGE_IDX_PER_SEG=2*3; // 6 indices per angular segment for edges
+var clipActive=false;
+var clipSeg=TOTAL_SEGS; // current clip segment (TOTAL_SEGS = show all)
+
+var ringMat=new THREE.MeshBasicMaterial({vertexColors:true});
 var topMesh=new THREE.Mesh(buildHelicoid(DH/2,true),ringMat);
 helixGroup.add(topMesh);
-var botMat=new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[edgeClipPlane],clipShadows:true});
+var botMat=new THREE.MeshBasicMaterial({vertexColors:true});
 var botMesh=new THREE.Mesh(buildHelicoid(-DH/2,false),botMat);
 helixGroup.add(botMesh);
 
@@ -233,19 +239,46 @@ function buildHelicoidEdge(radius,faceOut){
   geo.setAttribute("normal",new THREE.Float32BufferAttribute(n,3));
   geo.setIndex(idx);return geo;
 }
-var outerEdgeMesh=new THREE.Mesh(buildHelicoidEdge(OR,true),new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[edgeClipPlane]}));
+var outerEdgeMesh=new THREE.Mesh(buildHelicoidEdge(OR,true),new THREE.MeshBasicMaterial({vertexColors:true}));
 helixGroup.add(outerEdgeMesh);
-var innerEdgeMesh=new THREE.Mesh(buildHelicoidEdge(IR,false),new THREE.MeshBasicMaterial({vertexColors:true,clippingPlanes:[edgeClipPlane]}));
+var innerEdgeMesh=new THREE.Mesh(buildHelicoidEdge(IR,false),new THREE.MeshBasicMaterial({vertexColors:true}));
 helixGroup.add(innerEdgeMesh);
 
-// Clip plane visualization rectangle (in local space, perpendicular to helix Y-axis)
-var clipRectSize=(OR+0.6)*2;
-var clipRectGeo=new THREE.PlaneGeometry(clipRectSize,clipRectSize);
-clipRectGeo.rotateX(-Math.PI/2); // XZ plane, normal along Y
-var clipRectMat=new THREE.MeshBasicMaterial({color:0xD6CBBA,transparent:true,opacity:0.12,side:THREE.DoubleSide,depthWrite:false});
-var clipRect=new THREE.Mesh(clipRectGeo,clipRectMat);
-clipRect.visible=false;
-helixGroup.add(clipRect);
+// End-cap mesh — closes the open end of the helicoid at the cut angle
+var capVerts=new Float32Array(4*3);
+var capCols=new Float32Array(4*3);
+var capNorms=new Float32Array(4*3);
+var capGeo=new THREE.BufferGeometry();
+capGeo.setAttribute("position",new THREE.BufferAttribute(capVerts,3));
+capGeo.setAttribute("color",new THREE.BufferAttribute(capCols,3));
+capGeo.setAttribute("normal",new THREE.BufferAttribute(capNorms,3));
+capGeo.setIndex([0,1,2,1,3,2]);
+var capMesh=new THREE.Mesh(capGeo,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide}));
+capMesh.visible=false;
+helixGroup.add(capMesh);
+
+function updateEndCap(seg){
+  var totalAng=jan1A+(seg/TOTAL_SEGS)*Math.PI*2*NUM_YEARS;
+  var yearFrac=seg/TOTAL_SEGS*NUM_YEARS;
+  var yBase=-yearFrac*PITCH;
+  var ca=Math.cos(totalAng),sa=Math.sin(totalAng);
+  var pos=capGeo.attributes.position.array;
+  pos[0]=ca*IR;pos[1]=yBase+DH/2;pos[2]=sa*IR;
+  pos[3]=ca*OR;pos[4]=yBase+DH/2;pos[5]=sa*OR;
+  pos[6]=ca*IR;pos[7]=yBase-DH/2;pos[8]=sa*IR;
+  pos[9]=ca*OR;pos[10]=yBase-DH/2;pos[11]=sa*OR;
+  capGeo.attributes.position.needsUpdate=true;
+  var nx=-sa,nz=ca;
+  var nrm=capGeo.attributes.normal.array;
+  for(var i=0;i<4;i++){nrm[i*3]=nx;nrm[i*3+1]=0;nrm[i*3+2]=nz}
+  capGeo.attributes.normal.needsUpdate=true;
+  var cl=colorAtAng(totalAng);
+  var r=cl[0]*.85,g=cl[1]*.85,b=cl[2]*.85;
+  var colors=capGeo.attributes.color.array;
+  for(var i=0;i<4;i++){colors[i*3]=r;colors[i*3+1]=g;colors[i*3+2]=b}
+  capGeo.attributes.color.needsUpdate=true;
+  capMesh.visible=true;
+}
 
 // Clip intersection line — radial line where plane meets the helicoid
 var clipLineMat=new THREE.LineBasicMaterial({color:0xE89B6C,linewidth:2});
@@ -283,34 +316,24 @@ clipHandle.add(clipHandleHit);
 clipHandle.visible=false;
 helixGroup.add(clipHandle);
 
-// Compute date from clip Y position (local space)
-function clipYToDate(clipY){
-  var yf=-(clipY-DH/2)/PITCH; // account for top-surface offset
-  var yi=clamp(Math.floor(yf),0,NUM_YEARS-1);
-  var af=yf-yi;
-  if(af>=0.999){return{year:YEARS[yi],month:"Dec",day:31,ang:dateAng(12,31),yi:yi,af:af}}
-  var ang=jan1A+af*Math.PI*2;
-  var d=angDate(ang);
-  return{year:YEARS[yi],month:d.month,day:d.day,ang:ang,yi:yi,af:af};
-}
-
-// Update clip visuals (line, label, handle position)
-function updateClipVisuals(clipY){
-  var info=clipYToDate(clipY);
-  var ang=info.ang;
-  // Intersection line from IR to OR at the clip angle
-  var pts=[new THREE.Vector3(Math.cos(ang)*IR,clipY+.002,Math.sin(ang)*IR),
-           new THREE.Vector3(Math.cos(ang)*OR,clipY+.002,Math.sin(ang)*OR)];
+// Update clip visuals (line, label, handle) from segment index
+function updateClipVisuals(seg){
+  var totalAng=jan1A+(seg/TOTAL_SEGS)*Math.PI*2*NUM_YEARS;
+  var yearFrac=seg/TOTAL_SEGS*NUM_YEARS;
+  var yi=clamp(Math.floor(yearFrac),0,NUM_YEARS-1);
+  var yBase=-yearFrac*PITCH;
+  var d=angDate(totalAng);
+  var ca=Math.cos(totalAng),sa=Math.sin(totalAng);
+  // Intersection line from IR to OR at the cut angle (on top surface)
+  var pts=[new THREE.Vector3(ca*IR,yBase+DH/2+.002,sa*IR),
+           new THREE.Vector3(ca*OR,yBase+DH/2+.002,sa*OR)];
   clipLine.geometry.dispose();
   clipLine.geometry=new THREE.BufferGeometry().setFromPoints(pts);
   clipLine.visible=true;
-  // Date label
-  var txt=info.day+" "+info.month+" "+info.year;
+  var txt=d.day+" "+d.month+" "+YEARS[yi];
   updateClipDateLabel(txt);
-  clipDateSp.position.set(Math.cos(ang)*(OR+.45),clipY+.002,Math.sin(ang)*(OR+.45));
-  // Handle position — below the helicoid (local +Z maps to world -Y = screen bottom)
-  // Hide handle in axis view (circular drag is used instead)
-  clipHandle.position.set(0,clipY,OR+0.5);
+  clipDateSp.position.set(ca*(OR+.45),yBase+DH/2+.002,sa*(OR+.45));
+  clipHandle.position.set(0,yBase,OR+0.5);
   clipHandle.visible=!isAxisView;
 }
 
@@ -392,7 +415,14 @@ function rebuildHelicoid(){
   botMesh.geometry.dispose();botMesh.geometry=buildHelicoid(-DH/2,false);
   outerEdgeMesh.geometry.dispose();outerEdgeMesh.geometry=buildHelicoidEdge(OR,true);
   innerEdgeMesh.geometry.dispose();innerEdgeMesh.geometry=buildHelicoidEdge(IR,false);
+  if(clipActive)applyDrawRange(clipSeg);
   buildTicks();buildDividers();buildLabels();
+}
+function applyDrawRange(seg){
+  topMesh.geometry.setDrawRange(0,seg*SURF_IDX_PER_SEG);
+  botMesh.geometry.setDrawRange(0,seg*SURF_IDX_PER_SEG);
+  outerEdgeMesh.geometry.setDrawRange(0,seg*EDGE_IDX_PER_SEG);
+  innerEdgeMesh.geometry.setDrawRange(0,seg*EDGE_IDX_PER_SEG);
 }
 
 // LABELS — billboard sprites that always face the camera
@@ -483,7 +513,7 @@ function axisAngToClip(screenAng,yi){
   var localAng=screenAng;
   var af=yearAngFrac(localAng);
   af=clamp(af,0,0.999);
-  return (yi+af)*PITCH-DH/2; // offset so clip cuts top surface at correct angle
+  return (yi+af)*PITCH;
 }
 
 // INTERACTION
@@ -605,29 +635,34 @@ function setV(i){
   if(isAxisView){
     // Entering axis view: set clip to end of highlighted year
     var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
-    updateClipFromValue((yi+0.999)*PITCH-DH/2);
+    updateClipFromValue((yi+0.999)*PITCH);
     clipHandle.visible=false;
   }else{
     // Leaving axis view: restore handle visibility if clip is active
-    if(clipPlaneEnabled){clipHandle.visible=true}
+    if(clipActive){clipHandle.visible=true}
   }
   buildV();
 }
 function resetAll(){highlightYear=td.getFullYear();rebuildHelicoid();updI();buildB();buildY();updateClipFromValue(999)}
 
-// CLIPPING PLANE CONTROL
-// normal (0,0,1): clips where z < -c. Plane surface at world z = -c.
-// c = clipPlane.constant. Local Y of clip = -c.
+// CLIPPING VIA DRAW RANGE
+// c = yearFrac * PITCH. We convert to a segment index and limit geometry rendering.
 function updateClipFromValue(c){
-  if(c>helixH+1){clipPlane.constant=999;edgeClipPlane.constant=999;clipRect.visible=false;clipPlaneEnabled=false;hideClipVisuals();return}
-  c=clamp(c,-0.3,helixH+0.3);
-  clipPlane.constant=c;
-  edgeClipPlane.constant=c+DH; // clip edges at top-surface boundary so they don't extend past the cut line
-  var localY=-c;
-  clipRect.position.y=localY;
-  clipRect.visible=true;
-  clipPlaneEnabled=true;
-  updateClipVisuals(localY);
+  if(c>=helixH){
+    clipActive=false;clipSeg=TOTAL_SEGS;
+    topMesh.geometry.setDrawRange(0,Infinity);
+    botMesh.geometry.setDrawRange(0,Infinity);
+    outerEdgeMesh.geometry.setDrawRange(0,Infinity);
+    innerEdgeMesh.geometry.setDrawRange(0,Infinity);
+    capMesh.visible=false;hideClipVisuals();return;
+  }
+  c=clamp(c,0,helixH-0.001);
+  var yearFrac=c/PITCH;
+  clipSeg=clamp(Math.round(yearFrac/NUM_YEARS*TOTAL_SEGS),0,TOTAL_SEGS);
+  clipActive=true;
+  applyDrawRange(clipSeg);
+  updateEndCap(clipSeg);
+  updateClipVisuals(clipSeg);
 }
 
 // Date picker → clip plane
@@ -636,7 +671,7 @@ function dateToClipValue(dateStr){
   var yi=YEARS.indexOf(yr);if(yi<0)return 999;
   var ang=dateAng(mo,dy);
   var af=yearAngFrac(ang);
-  return (yi+af)*PITCH-DH/2; // offset so clip cuts top surface at correct angle
+  return (yi+af)*PITCH;
 }
 document.getElementById("datePick").addEventListener("change",function(){
   if(!this.value)return;
@@ -660,7 +695,7 @@ function setHighlight(y){
   // In axis view, reset clip to end of new year
   if(isAxisView){
     var yi=YEARS.indexOf(y);if(yi<0)yi=NUM_YEARS-1;
-    updateClipFromValue((yi+0.999)*PITCH-DH/2);
+    updateClipFromValue((yi+0.999)*PITCH);
   }
 }
 
