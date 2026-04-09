@@ -273,7 +273,7 @@ function updateEndCap(seg){
   for(var i=0;i<4;i++){nrm[i*3]=nx;nrm[i*3+1]=0;nrm[i*3+2]=nz}
   capGeo.attributes.normal.needsUpdate=true;
   var cl=colorAtAng(totalAng);
-  var r=cl[0]*.6,g=cl[1]*.6,b=cl[2]*.6;
+  var r=cl[0]*.35,g=cl[1]*.35,b=cl[2]*.35;
   var colors=capGeo.attributes.color.array;
   for(var i=0;i<4;i++){colors[i*3]=r;colors[i*3+1]=g;colors[i*3+2]=b}
   capGeo.attributes.color.needsUpdate=true;
