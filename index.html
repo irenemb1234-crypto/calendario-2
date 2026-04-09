@@ -459,6 +459,7 @@ function applyDrawRange(seg){
 
 // LABELS — billboard sprites that always face the camera
 var lG=new THREE.Group();helixGroup.add(lG);
+var yearLabelsOther=[]; // non-highlighted year labels (hidden in axis view)
 function mkLabel(txt,fs,col){
   var cv2=document.createElement("canvas"),cx=cv2.getContext("2d");
   var fn="900 "+fs+"px Nunito,sans-serif";cx.font=fn;
@@ -493,6 +494,7 @@ function buildLabels(){
     placeLabel(lab,a,y,IR+.12);lG.add(lab);
   });
   // Year labels on the inner surface
+  yearLabelsOther=[];
   for(var yi=0;yi<NUM_YEARS;yi++){
     var ang=dateAng(6,15);
     var angFrac=yearAngFrac(ang);
@@ -500,7 +502,9 @@ function buildLabels(){
     var col=yi===hiIdx?"rgba(45,42,38,0.8)":"rgba(45,42,38,0.25)";
     var lab=mkLabel(String(YEARS[yi]),yi===hiIdx?18:13,col);
     placeLabel(lab,ang,y,IR-.05);lG.add(lab);
+    if(yi!==hiIdx)yearLabelsOther.push(lab);
   }
+  if(isAxisView)yearLabelsOther.forEach(function(l){l.visible=false});
 }
 buildLabels();
 
@@ -569,7 +573,7 @@ cv.addEventListener("pointerdown",function(e){
       var yearZ=-(yi+0.5)*PITCH;
       var cp=new THREE.Vector3(0,0,yearZ);cp.project(activeCam);
       circDrag={cx:(cp.x+1)/2*cv.clientWidth,cy:(-cp.y+1)/2*cv.clientHeight};
-      var ang=Math.atan2(-(e.clientY-circDrag.cy),-(e.clientX-circDrag.cx));
+      var ang=Math.atan2(e.clientY-circDrag.cy,e.clientX-circDrag.cx);
       var clipC=axisAngToClip(ang,yi);
       updateClipFromValue(clipC);
       return;
@@ -606,7 +610,7 @@ cv.addEventListener("pointermove",function(e){
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(circDrag){
     // Axis view: circular drag
-    var ang=Math.atan2(-(e.clientY-circDrag.cy),-(e.clientX-circDrag.cx));
+    var ang=Math.atan2(e.clientY-circDrag.cy,e.clientX-circDrag.cx);
     var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
     var clipC=axisAngToClip(ang,yi);
     updateClipFromValue(clipC);return;
@@ -665,13 +669,15 @@ function setV(i){
   aV=i;tP=VW[i].p;tT=VW[i].t;
   isAxisView=!!VW[i].axis;
   if(isAxisView){
-    // Entering axis view: set clip to end of highlighted year
+    // Entering axis view: set clip to end of highlighted year, hide other year labels
     var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
     updateClipFromValue((yi+0.999)*PITCH);
     clipHandle.visible=false;
+    yearLabelsOther.forEach(function(l){l.visible=false});
   }else{
-    // Leaving axis view: restore handle visibility if clip is active
+    // Leaving axis view: restore handle visibility if clip is active, show year labels
     if(clipActive){clipHandle.visible=true}
+    yearLabelsOther.forEach(function(l){l.visible=true});
   }
   buildV();
 }
