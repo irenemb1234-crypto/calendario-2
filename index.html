@@ -280,8 +280,7 @@ function updateEndCap(seg){
   capMesh.visible=true;
 }
 
-// Clip intersection line — thin strip on the end-cap face, depth-tested so it's
-// visible from the front but naturally hidden when occluded by other coils.
+// Clip line on end-cap face (visible from the side, depth-tested)
 var clipLineVerts=new Float32Array(4*3);
 var clipLineGeo=new THREE.BufferGeometry();
 clipLineGeo.setAttribute("position",new THREE.BufferAttribute(clipLineVerts,3));
@@ -290,6 +289,18 @@ var clipLineMat=new THREE.MeshBasicMaterial({color:0xE89B6C,depthTest:true,side:
 var clipLine=new THREE.Mesh(clipLineGeo,clipLineMat);
 clipLine.visible=false;
 helixGroup.add(clipLine);
+
+// Clip line on top surface (visible from above/front, depthTest off for always-on)
+var CLIP_LINE_W=0.008;
+var clipTopVerts=new Float32Array(4*3);
+var clipTopGeo=new THREE.BufferGeometry();
+clipTopGeo.setAttribute("position",new THREE.BufferAttribute(clipTopVerts,3));
+clipTopGeo.setIndex([0,1,2,1,3,2]);
+var clipTopMat=new THREE.MeshBasicMaterial({color:0xE89B6C,depthTest:false,transparent:true,opacity:0.85,side:THREE.DoubleSide});
+var clipTopLine=new THREE.Mesh(clipTopGeo,clipTopMat);
+clipTopLine.renderOrder=999;
+clipTopLine.visible=false;
+helixGroup.add(clipTopLine);
 
 // Clip date label (sprite, stays readable)
 var clipDateSp=null;
@@ -340,6 +351,15 @@ function updateClipVisuals(seg){
   pos[9]=ca*OR+ox;pos[10]=yBase-DH/2;pos[11]=sa*OR+oz;
   clipLineGeo.attributes.position.needsUpdate=true;
   clipLine.visible=true;
+  // Top-surface line (thin radial line, always visible from above)
+  var yTop=yBase+DH/2+.003;
+  var tp=clipTopGeo.attributes.position.array;
+  tp[0]=ca*IR;tp[1]=yTop+CLIP_LINE_W;tp[2]=sa*IR;
+  tp[3]=ca*OR;tp[4]=yTop+CLIP_LINE_W;tp[5]=sa*OR;
+  tp[6]=ca*IR;tp[7]=yTop-CLIP_LINE_W;tp[8]=sa*IR;
+  tp[9]=ca*OR;tp[10]=yTop-CLIP_LINE_W;tp[11]=sa*OR;
+  clipTopGeo.attributes.position.needsUpdate=true;
+  clipTopLine.visible=true;
   var txt=d.day+" "+d.month+" "+YEARS[yi];
   updateClipDateLabel(txt);
   clipDateSp.position.set(ca*(OR+.45),yBase+DH/2+.002,sa*(OR+.45));
@@ -349,6 +369,7 @@ function updateClipVisuals(seg){
 
 function hideClipVisuals(){
   clipLine.visible=false;
+  clipTopLine.visible=false;
   clipHandle.visible=false;
   if(clipDateSp){helixGroup.remove(clipDateSp);if(clipDateSp.material.map)clipDateSp.material.map.dispose();clipDateSp.material.dispose();clipDateSp=null}
 }
@@ -658,7 +679,7 @@ function resetAll(){highlightYear=td.getFullYear();rebuildHelicoid();updI();buil
 // CLIPPING VIA DRAW RANGE
 // c = yearFrac * PITCH. We convert to a segment index and limit geometry rendering.
 function updateClipFromValue(c){
-  if(c>=helixH){
+  if(c>helixH+0.5){
     clipActive=false;clipSeg=TOTAL_SEGS;
     topMesh.geometry.setDrawRange(0,Infinity);
     botMesh.geometry.setDrawRange(0,Infinity);
@@ -666,7 +687,7 @@ function updateClipFromValue(c){
     innerEdgeMesh.geometry.setDrawRange(0,Infinity);
     capMesh.visible=false;hideClipVisuals();return;
   }
-  c=clamp(c,0,helixH-0.001);
+  c=clamp(c,0,helixH);
   var yearFrac=c/PITCH;
   clipSeg=clamp(Math.round(yearFrac/NUM_YEARS*TOTAL_SEGS),0,TOTAL_SEGS);
   clipActive=true;
