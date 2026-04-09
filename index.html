@@ -280,7 +280,9 @@ function updateEndCap(seg){
   capMesh.visible=!isAxisView;
 }
 
-// Full-height cutting plane — vertical blade through all coils at the cut angle
+// Cutting plane — perpendicular to helix axis at the cut position
+// In local space this is a flat square at y=yBase spanning X and Z.
+// On screen (helix is horizontal) it appears as a vertical blade.
 var cutPlaneVerts=new Float32Array(4*3);
 var cutPlaneGeo=new THREE.BufferGeometry();
 cutPlaneGeo.setAttribute("position",new THREE.BufferAttribute(cutPlaneVerts,3));
@@ -349,12 +351,13 @@ function updateClipVisuals(seg){
   var yBase=-yearFrac*PITCH;
   var d=angDate(totalAng);
   var ca=Math.cos(totalAng),sa=Math.sin(totalAng);
-  // Full-height cutting plane at the cut angle
+  // Cutting plane perpendicular to helix axis at cut position
+  var ext=OR+0.15; // extend slightly beyond outer radius
   var cp=cutPlaneGeo.attributes.position.array;
-  cp[0]=ca*IR;cp[1]=DH/2;cp[2]=sa*IR;
-  cp[3]=ca*OR;cp[4]=DH/2;cp[5]=sa*OR;
-  cp[6]=ca*IR;cp[7]=-helixH-DH/2;cp[8]=sa*IR;
-  cp[9]=ca*OR;cp[10]=-helixH-DH/2;cp[11]=sa*OR;
+  cp[0]=-ext;cp[1]=yBase;cp[2]=-ext;
+  cp[3]= ext;cp[4]=yBase;cp[5]=-ext;
+  cp[6]=-ext;cp[7]=yBase;cp[8]= ext;
+  cp[9]= ext;cp[10]=yBase;cp[11]=ext;
   cutPlaneGeo.attributes.position.needsUpdate=true;
   cutPlaneMesh.visible=!isAxisView;
   // Strip on the end-cap face: from IR to OR, spanning full DH height.
