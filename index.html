@@ -351,13 +351,14 @@ function updateClipVisuals(seg){
   pos[9]=ca*OR+ox;pos[10]=yBase-DH/2;pos[11]=sa*OR+oz;
   clipLineGeo.attributes.position.needsUpdate=true;
   clipLine.visible=true;
-  // Top-surface line (thin radial line, always visible from above)
+  // Top-surface line (thin radial strip, width in tangent direction so visible from axis view)
   var yTop=yBase+DH/2+.003;
   var tp=clipTopGeo.attributes.position.array;
-  tp[0]=ca*IR;tp[1]=yTop+CLIP_LINE_W;tp[2]=sa*IR;
-  tp[3]=ca*OR;tp[4]=yTop+CLIP_LINE_W;tp[5]=sa*OR;
-  tp[6]=ca*IR;tp[7]=yTop-CLIP_LINE_W;tp[8]=sa*IR;
-  tp[9]=ca*OR;tp[10]=yTop-CLIP_LINE_W;tp[11]=sa*OR;
+  var tx=-sa*CLIP_LINE_W,tz=ca*CLIP_LINE_W; // tangent direction offset
+  tp[0]=ca*IR+tx;tp[1]=yTop;tp[2]=sa*IR+tz;
+  tp[3]=ca*OR+tx;tp[4]=yTop;tp[5]=sa*OR+tz;
+  tp[6]=ca*IR-tx;tp[7]=yTop;tp[8]=sa*IR-tz;
+  tp[9]=ca*OR-tx;tp[10]=yTop;tp[11]=sa*OR-tz;
   clipTopGeo.attributes.position.needsUpdate=true;
   clipTopLine.visible=true;
   var txt=d.day+" "+d.month+" "+YEARS[yi];
