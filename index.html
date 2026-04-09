@@ -291,7 +291,7 @@ clipLine.visible=false;
 helixGroup.add(clipLine);
 
 // Clip line on top surface (visible from above/front, depthTest off for always-on)
-var CLIP_LINE_W=0.008;
+var CLIP_LINE_W=0.025;
 var clipTopVerts=new Float32Array(4*3);
 var clipTopGeo=new THREE.BufferGeometry();
 clipTopGeo.setAttribute("position",new THREE.BufferAttribute(clipTopVerts,3));
@@ -502,7 +502,7 @@ function buildLabels(){
     var col=yi===hiIdx?"rgba(45,42,38,0.8)":"rgba(45,42,38,0.25)";
     var lab=mkLabel(String(YEARS[yi]),yi===hiIdx?18:13,col);
     placeLabel(lab,ang,y,IR-.05);lG.add(lab);
-    if(yi!==hiIdx)yearLabelsOther.push(lab);
+    yearLabelsOther.push(lab);
   }
   if(isAxisView)yearLabelsOther.forEach(function(l){l.visible=false});
 }
