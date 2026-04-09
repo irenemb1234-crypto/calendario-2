@@ -273,11 +273,11 @@ function updateEndCap(seg){
   for(var i=0;i<4;i++){nrm[i*3]=nx;nrm[i*3+1]=0;nrm[i*3+2]=nz}
   capGeo.attributes.normal.needsUpdate=true;
   var cl=colorAtAng(totalAng);
-  var r=cl[0]*.85,g=cl[1]*.85,b=cl[2]*.85;
+  var r=cl[0]*.6,g=cl[1]*.6,b=cl[2]*.6;
   var colors=capGeo.attributes.color.array;
   for(var i=0;i<4;i++){colors[i*3]=r;colors[i*3+1]=g;colors[i*3+2]=b}
   capGeo.attributes.color.needsUpdate=true;
-  capMesh.visible=true;
+  capMesh.visible=!isAxisView;
 }
 
 // Clip line on end-cap face (visible from the side, depth-tested)
@@ -350,7 +350,7 @@ function updateClipVisuals(seg){
   pos[6]=ca*IR+ox;pos[7]=yBase-DH/2;pos[8]=sa*IR+oz;
   pos[9]=ca*OR+ox;pos[10]=yBase-DH/2;pos[11]=sa*OR+oz;
   clipLineGeo.attributes.position.needsUpdate=true;
-  clipLine.visible=true;
+  clipLine.visible=!isAxisView;
   // Top-surface line (thin radial strip, width in tangent direction so visible from axis view)
   var yTop=yBase+DH/2+.003;
   var tp=clipTopGeo.attributes.position.array;
