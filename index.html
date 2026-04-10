@@ -13,41 +13,56 @@
   h1{font-size:clamp(20px,4.5vw,36px);font-weight:900;color:#2D2A26;line-height:1;letter-spacing:-.02em}
   .sub{font-size:clamp(9px,1.6vw,12px);color:#B8A692;font-weight:700;margin-top:2px}
   .brow{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;justify-content:center}
-  .b{border:none;padding:5px 12px;border-radius:99px;cursor:pointer;font-size:clamp(10px,1.5vw,12px);font-family:inherit;font-weight:800;outline:none;-webkit-tap-highlight-color:transparent}
+  .b{border:none;padding:5px 12px;border-radius:99px;cursor:pointer;font-size:clamp(10px,1.5vw,12px);font-family:inherit;font-weight:800;outline:none;-webkit-tap-highlight-color:transparent;transition:filter .15s ease,transform .1s ease}
+  .b:hover{filter:brightness(1.08)}
+  .b:active{transform:scale(.96)}
+  .b:focus-visible{outline:2px solid #2D2A26;outline-offset:2px}
   #ui-bot{position:fixed;bottom:0;left:0;right:0;z-index:10;display:flex;flex-direction:column;align-items:center;padding:0 10px 10px;pointer-events:none;gap:5px}
   #ui-bot>*{pointer-events:auto}
-  .info{display:flex;gap:8px;align-items:center;background:rgba(254,246,238,.93);border-radius:99px;padding:5px 14px;backdrop-filter:blur(6px);transition:all .3s ease}
+  .info{display:flex;gap:8px;align-items:center;background:rgba(254,246,238,.93);border-radius:99px;padding:5px 14px;backdrop-filter:blur(6px);transition:all .3s ease;box-shadow:0 2px 12px rgba(0,0,0,.08)}
   .info-d{font-size:clamp(13px,2.2vw,18px);font-weight:900;color:#2D2A26}
   .info-l{font-size:9px;font-weight:800;color:#B8A692;letter-spacing:.1em}
-  .info-r{font-size:10px;font-weight:700;color:#E89B6C;cursor:pointer;border:none;background:none;font-family:inherit}
-  .vrow{display:flex;gap:4px}
-  .vb{border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#7A6E5E;padding:4px 10px;border-radius:99px;cursor:pointer;font-size:9px;font-family:inherit;font-weight:800;outline:none}
+  .info-r{font-size:10px;font-weight:700;color:#E89B6C;cursor:pointer;border:none;background:none;font-family:inherit;transition:opacity .15s ease}
+  .info-r:hover{opacity:.75}
+  .vrow{display:flex;gap:4px;align-items:center}
+  .vb{border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#7A6E5E;padding:4px 10px;border-radius:99px;cursor:pointer;font-size:9px;font-family:inherit;font-weight:800;outline:none;transition:background .15s ease,color .15s ease,border-color .15s ease,transform .1s ease;-webkit-tap-highlight-color:transparent}
   .vb.on{background:#2D2A26;color:#FEF6EE;border-color:#2D2A26}
-  .leg{display:flex;align-items:center;gap:2px;padding:4px 10px;background:#F5EBE0;border-radius:99px}
-  .leg span{color:#B8A692;font-size:8px;font-weight:800}
-  .lsw{height:6px;border-radius:99px}
+  .vb:not(.on):hover{border-color:#A89880;background:rgba(254,246,238,1);color:#2D2A26}
+  .vb:active{transform:scale(.96)}
+  .vb:focus-visible{outline:2px solid #2D2A26;outline-offset:2px}
+  .leg{display:flex;align-items:center;gap:3px;padding:5px 12px;background:rgba(245,235,224,.95);border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.06);backdrop-filter:blur(4px)}
+  .leg-label{color:#B8A692;font-size:8px;font-weight:800;letter-spacing:.04em}
+  .lsw{height:8px;border-radius:99px}
   .yrow{display:flex;gap:3px;margin-top:4px;overflow-x:auto;max-width:90vw;padding:2px 0;scrollbar-width:none;-ms-overflow-style:none}
   .yrow::-webkit-scrollbar{display:none}
-  .yb{border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#7A6E5E;padding:3px 8px;border-radius:99px;cursor:pointer;font-size:9px;font-family:inherit;font-weight:800;outline:none;white-space:nowrap;flex-shrink:0}
+  .yb{border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#7A6E5E;padding:5px 12px;border-radius:99px;cursor:pointer;font-size:10px;font-family:inherit;font-weight:800;outline:none;white-space:nowrap;flex-shrink:0;transition:background .15s ease,color .15s ease,border-color .15s ease,transform .1s ease;-webkit-tap-highlight-color:transparent}
   .yb.on{background:#2D2A26;color:#FEF6EE;border-color:#2D2A26}
-  .otog{border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#7A6E5E;padding:4px 10px;border-radius:99px;cursor:pointer;font-size:9px;font-family:inherit;font-weight:800;outline:none}
+  .yb:not(.on):hover{border-color:#A89880;background:rgba(254,246,238,1);color:#2D2A26}
+  .yb:active{transform:scale(.96)}
+  .yb:focus-visible{outline:2px solid #2D2A26;outline-offset:2px}
+  .otog{border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#7A6E5E;padding:4px 10px;border-radius:99px;cursor:pointer;font-size:9px;font-family:inherit;font-weight:800;outline:none;transition:background .15s ease,color .15s ease,border-color .15s ease,transform .1s ease;-webkit-tap-highlight-color:transparent}
   .otog.on{background:#2D2A26;color:#FEF6EE;border-color:#2D2A26}
+  .otog:not(.on):hover{border-color:#A89880;background:rgba(254,246,238,1);color:#2D2A26}
+  .otog:active{transform:scale(.96)}
+  .otog:focus-visible{outline:2px solid #2D2A26;outline-offset:2px}
+  .dprow{display:flex;align-items:center;gap:6px;background:rgba(254,246,238,.93);border-radius:99px;padding:4px 12px;box-shadow:0 2px 8px rgba(0,0,0,.06);backdrop-filter:blur(6px)}
   canvas{display:block;width:100%;height:100%;touch-action:none}
 </style>
 </head>
 <body>
 <div id="ui-top">
-  <h1>Seasons</h1>
-  <p class="sub" id="sub-hint">drag handle to clip · tap Explore to orbit · tap year to highlight</p>
+  <h1>Seasons <span style="font-weight:400;color:#B8A692;font-size:.6em;letter-spacing:0">2021–2026</span></h1>
+  <p class="sub" id="sub-hint">drag handle to clip &nbsp;·&nbsp; tap year to highlight &nbsp;·&nbsp; Explore to orbit</p>
   <div class="brow" id="btns"></div>
-  <div class="yrow" id="yrow"></div>
+  <div class="yrow" id="yrow" role="group" aria-label="Year selection"></div>
 </div>
 <canvas id="c"></canvas>
 <div id="ui-bot">
-  <div class="info"><div><div class="info-l" id="il">TODAY</div><div class="info-d" id="id"></div></div><button class="info-r" id="ir" style="display:none">← today</button></div>
-  <div style="display:flex;align-items:center;gap:6px"><label style="font-size:9px;font-weight:800;color:#B8A692">Go to:</label><input type="date" id="datePick" min="2021-01-01" max="2026-12-31" style="font-family:inherit;font-size:10px;font-weight:700;border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#2D2A26;border-radius:99px;padding:3px 8px;outline:none"></div>
-  <div class="vrow" id="vr"></div>
-  <button class="otog" id="orbTog">Explore: OFF</button>
+  <div class="info" role="status" aria-live="polite"><div><div class="info-l" id="il">TODAY</div><div class="info-d" id="id"></div></div><button class="info-r" id="ir" aria-label="Go to today" style="display:none">← today</button></div>
+  <div class="dprow"><label for="datePick" style="font-size:9px;font-weight:800;color:#B8A692;letter-spacing:.04em">GO TO</label><input type="date" id="datePick" aria-label="Go to date" min="2021-01-01" max="2026-12-31" style="font-family:inherit;font-size:11px;font-weight:700;border:none;background:transparent;color:#2D2A26;outline:none;cursor:pointer"></div>
+  <div class="vrow" id="vr" role="group" aria-label="View options">
+    <button class="otog" id="orbTog" aria-pressed="false">Explore</button>
+  </div>
   <div class="leg" id="lg"></div>
 </div>
 
@@ -743,8 +758,9 @@ document.getElementById("datePick").addEventListener("change",function(){
 var orbTogBtn=document.getElementById("orbTog");
 orbTogBtn.addEventListener("click",function(){
   orbLocked=!orbLocked;
-  orbTogBtn.textContent="Explore: "+(orbLocked?"OFF":"ON");
+  orbTogBtn.textContent="Explore";
   orbTogBtn.className="otog"+(orbLocked?"":" on");
+  orbTogBtn.setAttribute("aria-pressed",String(!orbLocked));
   if(orbLocked){setV(aV)} // snap back to current view
 })
 
@@ -763,6 +779,8 @@ function buildY(){
   var el=document.getElementById("yrow");el.innerHTML="";
   YEARS.forEach(function(y){
     var b=document.createElement("button");b.className="yb"+(y===highlightYear?" on":"");b.textContent=y;
+    b.setAttribute("aria-label","Highlight "+y);
+    b.setAttribute("aria-pressed",String(y===highlightYear));
     b.addEventListener("click",function(){setHighlight(y)});
     el.appendChild(b);
   });
@@ -772,16 +790,21 @@ function buildB(){
   var el=document.getElementById("btns");el.innerHTML="";
   var df=highlightYear===td.getFullYear();
   var ab=document.createElement("button");ab.className="b";ab.textContent="Reset";
+  ab.setAttribute("aria-label","Reset to current year and today");
   ab.style.background=df?"#2D2A26":"#F0E6D8";ab.style.color=df?"#FEF6EE":"#7A6E5E";
   ab.addEventListener("click",resetAll);el.appendChild(ab);
 }
 
 function buildV(){
-  var el=document.getElementById("vr");el.innerHTML="";
+  var el=document.getElementById("vr");
+  var ot=document.getElementById("orbTog"); // preserve before clearing
+  el.innerHTML="";
   VW.forEach(function(v,i){
     var b=document.createElement("button");b.className="vb"+(aV===i?" on":"");b.textContent=v.n;
+    b.setAttribute("aria-label",v.n+" view");
     b.addEventListener("click",function(){setV(i)});el.appendChild(b);
   });
+  if(ot){el.appendChild(ot)} // re-attach Explore toggle at end
 }
 
 function updI(){
@@ -793,9 +816,9 @@ function updI(){
 document.getElementById("ir").addEventListener("click",resetAll);
 
 var lg=document.getElementById("lg");
-var c1=document.createElement("span");c1.textContent="cold";c1.style.marginRight="3px";lg.appendChild(c1);
-for(var i=0;i<14;i++){var d=document.createElement("div");d.className="lsw";d.style.width="clamp(6px,1.5vw,10px)";d.style.background=tHex(-1+(i/13)*41);lg.appendChild(d)}
-var c2=document.createElement("span");c2.textContent="warm";c2.style.marginLeft="3px";lg.appendChild(c2);
+var c1=document.createElement("span");c1.className="leg-label";c1.textContent="\u22121\u00b0C";c1.style.marginRight="2px";lg.appendChild(c1);
+for(var i=0;i<18;i++){var d=document.createElement("div");d.className="lsw";d.style.width="clamp(5px,1.2vw,9px)";d.style.background=tHex(-1+(i/17)*41);lg.appendChild(d)}
+var c2=document.createElement("span");c2.className="leg-label";c2.textContent="40\u00b0C";c2.style.marginLeft="2px";lg.appendChild(c2);
 
 // Double-tap detection
 var lastTapTime=0,lastTapPos={x:0,y:0};
