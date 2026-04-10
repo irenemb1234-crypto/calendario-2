@@ -399,6 +399,8 @@ function updateClipVisuals(seg){
   clipTopLine.visible=true;
   var txt=d.day+" "+d.month+" "+YEARS[yi];
   updateClipDateLabel(txt);
+  var moNum=mN.indexOf(d.month)+1;
+  document.getElementById("datePick").value=YEARS[yi]+"-"+String(moNum).padStart(2,"0")+"-"+String(d.day).padStart(2,"0");
   clipDateSp.position.set(ca*(OR+.45),yBase+DH/2+.002,sa*(OR+.45));
   clipHandle.position.set(0,yBase,OR+0.5);
   clipHandle.visible=!isAxisView;
@@ -729,7 +731,7 @@ function updateClipFromValue(c){
     botMesh.geometry.setDrawRange(0,Infinity);
     outerEdgeMesh.geometry.setDrawRange(0,Infinity);
     innerEdgeMesh.geometry.setDrawRange(0,Infinity);
-    capMesh.visible=false;hideClipVisuals();return;
+    capMesh.visible=false;hideClipVisuals();document.getElementById("datePick").value="";return;
   }
   c=clamp(c,0,helixH);
   var yearFrac=c/PITCH;
