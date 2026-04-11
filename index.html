@@ -47,6 +47,44 @@
   .otog:focus-visible{outline:2px solid #2D2A26;outline-offset:2px}
   .dprow{display:flex;align-items:center;gap:6px;background:rgba(254,246,238,.93);border-radius:99px;padding:4px 12px;box-shadow:0 2px 8px rgba(0,0,0,.06);backdrop-filter:blur(6px)}
   canvas{display:block;width:100%;height:100%;touch-action:none}
+
+  /* ── Event popup (axis view click) ── */
+  .evt-popup{position:fixed;z-index:100;background:rgba(45,42,38,.94);color:#FEF6EE;border-radius:14px;padding:12px 18px;max-width:260px;box-shadow:0 6px 24px rgba(0,0,0,.22);backdrop-filter:blur(8px);pointer-events:auto;opacity:0;transform:translateY(6px);transition:opacity .2s ease,transform .2s ease;font-family:'Nunito',sans-serif}
+  .evt-popup.show{opacity:1;transform:translateY(0)}
+  .evt-popup-title{font-size:13px;font-weight:900;margin-bottom:2px}
+  .evt-popup-date{font-size:9px;font-weight:700;color:#B8A692;letter-spacing:.06em;margin-bottom:6px}
+  .evt-popup-desc{font-size:11px;font-weight:600;line-height:1.45;color:#E0D6C8}
+  .evt-popup-close{position:absolute;top:6px;right:10px;background:none;border:none;color:#B8A692;font-size:16px;cursor:pointer;font-family:inherit;font-weight:700;line-height:1}
+
+  /* ── Monthly view modal ── */
+  .month-overlay{position:fixed;inset:0;z-index:200;background:rgba(45,42,38,.35);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s ease}
+  .month-overlay.open{opacity:1;pointer-events:auto}
+  .month-modal{background:#FEF6EE;border-radius:18px;width:min(92vw,420px);max-height:88vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,.18);padding:0;display:flex;flex-direction:column;transform:scale(.96);transition:transform .25s ease}
+  .month-overlay.open .month-modal{transform:scale(1)}
+  .month-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;position:sticky;top:0;background:#FEF6EE;border-radius:18px 18px 0 0;z-index:1}
+  .month-hdr-title{font-size:clamp(16px,4vw,22px);font-weight:900;color:#2D2A26}
+  .month-nav{background:none;border:1.5px solid #D6CBBA;color:#7A6E5E;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;font-family:inherit;font-weight:800;transition:background .15s,color .15s,border-color .15s}
+  .month-nav:hover{background:#2D2A26;color:#FEF6EE;border-color:#2D2A26}
+  .month-nav:active{transform:scale(.94)}
+  .month-close{background:none;border:none;color:#B8A692;font-size:22px;cursor:pointer;font-family:inherit;font-weight:700;line-height:1;padding:0 2px}
+  .month-close:hover{color:#2D2A26}
+  .month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;padding:0 16px 8px;text-align:center}
+  .month-grid-hdr{font-size:9px;font-weight:800;color:#B8A692;padding:6px 0;letter-spacing:.06em}
+  .month-cell{position:relative;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;font-size:clamp(11px,2.5vw,14px);font-weight:700;color:#2D2A26;cursor:default;transition:background .12s}
+  .month-cell.empty{pointer-events:none}
+  .month-cell.today{background:#E89B6C;color:#FEF6EE;border-radius:50%}
+  .month-cell.has-event{cursor:pointer;position:relative}
+  .month-cell.has-event::after{content:'';position:absolute;bottom:3px;width:5px;height:5px;border-radius:50%;background:#E89B6C}
+  .month-cell.has-event:hover{background:rgba(232,155,108,.15)}
+  .month-events{padding:4px 20px 18px;display:flex;flex-direction:column;gap:6px}
+  .month-evt-item{display:flex;align-items:flex-start;gap:8px;padding:8px 12px;background:rgba(232,155,108,.08);border-radius:10px;cursor:pointer;transition:background .12s}
+  .month-evt-item:hover{background:rgba(232,155,108,.18)}
+  .month-evt-dot{width:8px;height:8px;border-radius:50%;background:#E89B6C;flex-shrink:0;margin-top:4px}
+  .month-evt-info{flex:1;min-width:0}
+  .month-evt-date{font-size:9px;font-weight:800;color:#B8A692;letter-spacing:.04em}
+  .month-evt-title{font-size:12px;font-weight:800;color:#2D2A26}
+  .month-evt-desc{font-size:11px;font-weight:600;color:#7A6E5E;line-height:1.4;margin-top:2px}
+  .month-no-events{text-align:center;font-size:12px;font-weight:700;color:#B8A692;padding:18px 0}
 </style>
 </head>
 <body>
@@ -66,7 +104,30 @@
   <div class="leg" id="lg"></div>
 </div>
 
+<!-- Event popup (shown on marker click in axis view) -->
+<div class="evt-popup" id="evtPopup">
+  <button class="evt-popup-close" id="evtPopupClose" aria-label="Close">&times;</button>
+  <div class="evt-popup-title" id="evtPopupTitle"></div>
+  <div class="evt-popup-date" id="evtPopupDate"></div>
+  <div class="evt-popup-desc" id="evtPopupDesc"></div>
+</div>
+
+<!-- Monthly view overlay -->
+<div class="month-overlay" id="monthOverlay">
+  <div class="month-modal">
+    <div class="month-hdr">
+      <button class="month-nav" id="monthPrev" aria-label="Previous month">&#8249;</button>
+      <span class="month-hdr-title" id="monthTitle"></span>
+      <button class="month-nav" id="monthNext" aria-label="Next month">&#8250;</button>
+      <button class="month-close" id="monthClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="month-grid" id="monthGrid"></div>
+    <div class="month-events" id="monthEvents"></div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="calendar-events.js"></script>
 <script>
 (function(){
 
@@ -596,6 +657,7 @@ var orbLocked=true; // orbit locked by default
 var clipDrag=false,clipDragStartSX=0,clipDragStartSY=0,clipDragStartVal=0;
 var axDirX=0,axDirY=0; // screen-space direction of helix axis
 var circDrag=false; // circular drag in axis view
+var circDragMoved=false; // track if pointer moved during axis drag
 var ptrs=new Map();
 var tapStart=null;
 
@@ -606,7 +668,7 @@ cv.addEventListener("pointerdown",function(e){
   if(ptrs.size===1){
     if(isAxisView){
       // Axis view: circular drag — any touch/click starts it
-      circDrag=true;cv.style.cursor="grabbing";
+      circDrag=true;circDragMoved=false;cv.style.cursor="grabbing";
       // Compute angle from pointer to center of coil on screen
       var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
       var yearZ=-(yi+0.5)*PITCH;
@@ -649,6 +711,7 @@ cv.addEventListener("pointermove",function(e){
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(circDrag){
     // Axis view: circular drag
+    circDragMoved=true;
     var ang=Math.atan2(e.clientY-circDrag.cy,e.clientX-circDrag.cx);
     var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
     var clipC=axisAngToClip(ang,yi);
@@ -679,7 +742,7 @@ cv.addEventListener("pointerup",function(e){
   }
   tapStart=null;
   ptrs.delete(e.pointerId);
-  if(circDrag){circDrag=false;cv.style.cursor="";return}
+  if(circDrag){circDrag=false;cv.style.cursor="";if(circDragMoved)setTimeout(function(){circDragMoved=false},0);return}
   if(clipDrag){clipDrag=false;cv.style.cursor="";return}
   if(!ptrs.size){orb=false;pin=false;orbP=false}
   if(ptrs.size<2)pin=false;
@@ -718,6 +781,7 @@ function setV(i){
     if(clipActive){clipHandle.visible=true}
     yearLabelsOther.forEach(function(l){l.visible=true});
   }
+  if(typeof updateEventMarkerVisibility==="function")updateEventMarkerVisibility();
   buildV();
 }
 function resetAll(){highlightYear=td.getFullYear();rebuildHelicoid();updI();buildB();buildY();updateClipFromValue(999)}
@@ -770,6 +834,7 @@ function setHighlight(y){
   if(y===highlightYear)return;
   highlightYear=y;
   rebuildHelicoid();updI();buildB();buildY();
+  if(typeof buildEventMarkers==="function")buildEventMarkers();
   // In axis view, reset clip to end of new year
   if(isAxisView){
     var yi=YEARS.indexOf(y);if(yi<0)yi=NUM_YEARS-1;
@@ -825,12 +890,268 @@ var c2=document.createElement("span");c2.className="leg-label";c2.textContent="4
 // Double-tap detection
 var lastTapTime=0,lastTapPos={x:0,y:0};
 
+// ═══════════════ GOOGLE CALENDAR EVENTS (2026) ═══════════════
+var evtMarkerGroup=new THREE.Group();helixGroup.add(evtMarkerGroup);
+var evtHitTargets=[]; // {mesh, evt} for raycasting
+
+function parseEvtDate(ds){var p=ds.split("-");return{year:parseInt(p[0]),month:parseInt(p[1]),day:parseInt(p[2])}}
+
+function buildEventMarkers(){
+  // Clear old markers
+  while(evtMarkerGroup.children.length){
+    var ch=evtMarkerGroup.children[0];
+    if(ch.geometry)ch.geometry.dispose();if(ch.material)ch.material.dispose();
+    evtMarkerGroup.remove(ch);
+  }
+  evtHitTargets=[];
+  if(typeof CALENDAR_EVENTS==="undefined")return;
+  var yi2026=YEARS.indexOf(2026);if(yi2026<0)return;
+
+  CALENDAR_EVENTS.forEach(function(evt){
+    var d=parseEvtDate(evt.date);
+    if(d.year!==2026)return;
+    var ang=dateAng(d.month,d.day);
+    var angFrac=yearAngFrac(ang);
+    var yPos=-(yi2026+angFrac)*PITCH+DH/2+0.01;
+    var markerR=MR; // place on the middle of the color ring
+
+    // Visible dot
+    var dotGeo=new THREE.CircleGeometry(0.028,16);
+    var dotMat=new THREE.MeshBasicMaterial({
+      color:new THREE.Color(evt.color||"#2D2A26"),
+      depthTest:false,side:THREE.DoubleSide
+    });
+    var dot=new THREE.Mesh(dotGeo,dotMat);
+    dot.position.set(Math.cos(ang)*markerR,yPos,Math.sin(ang)*markerR);
+    dot.rotation.x=-Math.PI/2; // face up
+    dot.renderOrder=998;
+    evtMarkerGroup.add(dot);
+
+    // Invisible larger hit target for easier clicking
+    var hitGeo=new THREE.CircleGeometry(0.07,8);
+    var hitMat=new THREE.MeshBasicMaterial({visible:false,side:THREE.DoubleSide});
+    var hitMesh=new THREE.Mesh(hitGeo,hitMat);
+    hitMesh.position.copy(dot.position);
+    hitMesh.rotation.x=-Math.PI/2;
+    evtMarkerGroup.add(hitMesh);
+    evtHitTargets.push({mesh:hitMesh,evt:evt});
+  });
+
+  // Only show markers when 2026 is highlighted and in axis view
+  updateEventMarkerVisibility();
+}
+
+function updateEventMarkerVisibility(){
+  var show=isAxisView&&highlightYear===2026;
+  evtMarkerGroup.visible=show;
+}
+
+buildEventMarkers();
+
+// ── Event popup ──
+var evtPopup=document.getElementById("evtPopup");
+var evtPopupTitle=document.getElementById("evtPopupTitle");
+var evtPopupDate=document.getElementById("evtPopupDate");
+var evtPopupDesc=document.getElementById("evtPopupDesc");
+
+function showEvtPopup(evt,sx,sy){
+  var d=parseEvtDate(evt.date);
+  evtPopupTitle.textContent=evt.title;
+  evtPopupDate.textContent=d.day+" "+mN[d.month-1]+" "+d.year;
+  evtPopupDesc.textContent=evt.description;
+  // Position near the click, keep on screen
+  var pw=260,ph=100;
+  var lft=Math.min(sx+12,window.innerWidth-pw-12);
+  var tp=Math.min(sy-10,window.innerHeight-ph-12);
+  if(tp<10)tp=sy+20;
+  evtPopup.style.left=lft+"px";evtPopup.style.top=tp+"px";
+  evtPopup.classList.add("show");
+}
+function hideEvtPopup(){evtPopup.classList.remove("show")}
+document.getElementById("evtPopupClose").addEventListener("click",hideEvtPopup);
+
+// Raycast click on event markers in axis view
+cv.addEventListener("click",function(e){
+  if(circDragMoved)return; // skip if user dragged
+  if(!isAxisView||highlightYear!==2026||!evtHitTargets.length)return;
+  var rc=new THREE.Raycaster();
+  var rect=cv.getBoundingClientRect();
+  var mx=((e.clientX-rect.left)/rect.width)*2-1;
+  var my=-((e.clientY-rect.top)/rect.height)*2+1;
+  rc.setFromCamera(new THREE.Vector2(mx,my),activeCam);
+  var meshes=evtHitTargets.map(function(h){return h.mesh});
+  var hits=rc.intersectObjects(meshes);
+  if(hits.length>0){
+    var hit=hits[0].object;
+    for(var i=0;i<evtHitTargets.length;i++){
+      if(evtHitTargets[i].mesh===hit){showEvtPopup(evtHitTargets[i].evt,e.clientX,e.clientY);return}
+    }
+  }
+  hideEvtPopup();
+});
+
+// ── Monthly view ──
+var monthOverlay=document.getElementById("monthOverlay");
+var monthTitle=document.getElementById("monthTitle");
+var monthGrid=document.getElementById("monthGrid");
+var monthEventsEl=document.getElementById("monthEvents");
+var currentModalMonth=1; // 1-12
+var fullMonthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function getEventsForMonth(mo){
+  if(typeof CALENDAR_EVENTS==="undefined")return[];
+  return CALENDAR_EVENTS.filter(function(ev){var d=parseEvtDate(ev.date);return d.year===2026&&d.month===mo});
+}
+
+function daysInMonth2026(mo){
+  var d=[31,28,31,30,31,30,31,31,30,31,30,31];
+  return d[mo-1];
+}
+
+function openMonthView(mo){
+  currentModalMonth=mo;
+  renderMonthView(mo);
+  monthOverlay.classList.add("open");
+}
+function closeMonthView(){monthOverlay.classList.remove("open")}
+
+function renderMonthView(mo){
+  monthTitle.textContent=fullMonthNames[mo-1]+" 2026";
+  monthGrid.innerHTML="";
+  monthEventsEl.innerHTML="";
+
+  // Day-of-week headers
+  var dows=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  dows.forEach(function(d){
+    var h=document.createElement("div");h.className="month-grid-hdr";h.textContent=d;monthGrid.appendChild(h);
+  });
+
+  var dim=daysInMonth2026(mo);
+  // Jan 1 2026 is Thursday => weekday index 3 (Mon=0)
+  // Compute first day of this month
+  var jan1=new Date(2026,0,1).getDay(); // 0=Sun
+  var first=new Date(2026,mo-1,1).getDay();
+  var startIdx=(first===0)?6:first-1; // convert to Mon=0 system
+
+  // Events lookup for this month
+  var evts=getEventsForMonth(mo);
+  var evtByDay={};
+  evts.forEach(function(ev){var d=parseEvtDate(ev.date);if(!evtByDay[d.day])evtByDay[d.day]=[];evtByDay[d.day].push(ev)});
+
+  // Empty cells
+  for(var i=0;i<startIdx;i++){
+    var c=document.createElement("div");c.className="month-cell empty";monthGrid.appendChild(c);
+  }
+  // Day cells
+  var todayDay=(td.getFullYear()===2026&&td.getMonth()===mo-1)?td.getDate():-1;
+  for(var d=1;d<=dim;d++){
+    var c=document.createElement("div");
+    c.className="month-cell";
+    if(d===todayDay)c.className+=" today";
+    if(evtByDay[d])c.className+=" has-event";
+    c.textContent=d;
+    if(evtByDay[d]){
+      (function(day){
+        c.addEventListener("click",function(){
+          // Scroll to event list item
+          var target=document.getElementById("mevt-"+day);
+          if(target)target.scrollIntoView({behavior:"smooth",block:"nearest"});
+        });
+      })(d);
+    }
+    monthGrid.appendChild(c);
+  }
+
+  // Events list below calendar
+  if(evts.length===0){
+    var ne=document.createElement("div");ne.className="month-no-events";ne.textContent="No events this month";monthEventsEl.appendChild(ne);
+  }else{
+    evts.sort(function(a,b){return parseEvtDate(a.date).day-parseEvtDate(b.date).day});
+    evts.forEach(function(ev){
+      var d=parseEvtDate(ev.date);
+      var item=document.createElement("div");item.className="month-evt-item";item.id="mevt-"+d.day;
+      item.innerHTML='<div class="month-evt-dot"></div><div class="month-evt-info"><div class="month-evt-date">'+d.day+" "+mN[d.month-1]+'</div><div class="month-evt-title">'+ev.title+'</div><div class="month-evt-desc">'+ev.description+'</div></div>';
+      monthEventsEl.appendChild(item);
+    });
+  }
+}
+
+document.getElementById("monthClose").addEventListener("click",closeMonthView);
+document.getElementById("monthPrev").addEventListener("click",function(){
+  currentModalMonth--;if(currentModalMonth<1)currentModalMonth=12;
+  renderMonthView(currentModalMonth);
+});
+document.getElementById("monthNext").addEventListener("click",function(){
+  currentModalMonth++;if(currentModalMonth>12)currentModalMonth=1;
+  renderMonthView(currentModalMonth);
+});
+// Close on overlay background click
+monthOverlay.addEventListener("click",function(e){if(e.target===monthOverlay)closeMonthView()});
+
+// ── Month label click detection (axis view) ──
+// When in axis view and 2026 is highlighted, detect clicks near month labels
+// and open the monthly view for that month.
+var monthLabelHits=[]; // populated during buildLabels
+
+// Patch buildLabels to also build month-label hit targets
+var _origBuildLabels=buildLabels;
+buildLabels=function(){
+  _origBuildLabels();
+  monthLabelHits=[];
+  if(highlightYear!==2026)return;
+  var hiIdx=YEARS.indexOf(2026);if(hiIdx<0)return;
+  // Create invisible hit sprites for each month
+  MONTHS.forEach(function(m,i){
+    var calMonths2=[12,1,2,3,4,5,6,7,8,9,10,11];
+    var calMonth=calMonths2[i]; // MONTHS[0]=Dec(12), MONTHS[1]=Jan(1), ..., MONTHS[11]=Nov(11)
+    var a=DEC1+(i*30+15)*Math.PI/180;
+    var angFrac=yearAngFrac(a);
+    var y=-(hiIdx+angFrac)*PITCH;
+    // Invisible clickable sprite
+    var hitGeo=new THREE.PlaneGeometry(0.3,0.15);
+    var hitMat=new THREE.MeshBasicMaterial({visible:false,side:THREE.DoubleSide,depthTest:false});
+    var hitMesh=new THREE.Mesh(hitGeo,hitMat);
+    hitMesh.position.set(Math.cos(a)*MR,y+DH/2+.003,Math.sin(a)*MR);
+    hitMesh.rotation.x=-Math.PI/2;
+    hitMesh.renderOrder=1000;
+    lG.add(hitMesh);
+    monthLabelHits.push({mesh:hitMesh,month:calMonth});
+  });
+};
+// Rebuild to register the hits
+buildLabels();
+
+// Click handler for month labels in axis view
+cv.addEventListener("click",function(e){
+  if(circDragMoved)return;
+  if(!isAxisView||highlightYear!==2026||!monthLabelHits.length)return;
+  // Skip if event popup click was handled
+  if(evtPopup.classList.contains("show"))return;
+  var rc=new THREE.Raycaster();
+  var rect=cv.getBoundingClientRect();
+  var mx=((e.clientX-rect.left)/rect.width)*2-1;
+  var my=-((e.clientY-rect.top)/rect.height)*2+1;
+  rc.setFromCamera(new THREE.Vector2(mx,my),activeCam);
+  var meshes=monthLabelHits.map(function(h){return h.mesh});
+  var hits=rc.intersectObjects(meshes);
+  if(hits.length>0){
+    var hit=hits[0].object;
+    for(var i=0;i<monthLabelHits.length;i++){
+      if(monthLabelHits[i].mesh===hit){
+        hideEvtPopup();
+        openMonthView(monthLabelHits[i].month);
+        return;
+      }
+    }
+  }
+});
+
 // ═══════════════ RESIZE & ANIMATION ═══════════════
 
 function resize(){var w=window.innerWidth,h=window.innerHeight;R.setSize(w,h);var a=w/h;ortCam.left=-ortSize*a;ortCam.right=ortSize*a;ortCam.top=ortSize;ortCam.bottom=-ortSize;ortCam.updateProjectionMatrix()}
 window.addEventListener("resize",resize);resize();
 
-if(isDesk){document.getElementById("sub-hint").textContent="drag handle to clip · click Explore to orbit · click year to highlight"}
+if(isDesk){document.getElementById("sub-hint").textContent="drag handle to clip · click Explore to orbit · click year to highlight · Axis 2026: click month or event"}
 
 helixGroup.updateMatrixWorld(true);
 // Initialize clip plane at the end (31 Dec 2026)
