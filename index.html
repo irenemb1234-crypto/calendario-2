@@ -745,10 +745,11 @@ cv.addEventListener("pointerup",function(e){
       lastTapTime=Date.now();lastTapPos={x:e.clientX,y:e.clientY};
     }
   }
+  var wasTap=tapStart&&tapStart.id===e.pointerId&&Math.hypot(e.clientX-tapStart.x,e.clientY-tapStart.y)<12&&Date.now()-tapStart.t<400;
   tapStart=null;
   ptrs.delete(e.pointerId);
-  if(circDragPending){circDragPending=null} // was a tap, not a drag — let click handlers fire
-  if(circDrag){circDrag=false;cv.style.cursor="";if(circDragMoved)setTimeout(function(){circDragMoved=false},0);return}
+  if(circDragPending){circDragPending=null;if(wasTap&&typeof handleAxisTap==="function"){handleAxisTap(e.clientX,e.clientY)}return}
+  if(circDrag){circDrag=false;cv.style.cursor="";return}
   if(clipDrag){clipDrag=false;cv.style.cursor="";return}
   if(!ptrs.size){orb=false;pin=false;orbP=false}
   if(ptrs.size<2)pin=false;
@@ -976,25 +977,38 @@ function showEvtPopup(evt,sx,sy){
 function hideEvtPopup(){evtPopup.classList.remove("show")}
 document.getElementById("evtPopupClose").addEventListener("click",hideEvtPopup);
 
-// Raycast click on event markers in axis view
-cv.addEventListener("click",function(e){
-  if(circDragMoved)return; // skip if user dragged
-  if(!isAxisView||highlightYear!==2026||!evtHitTargets.length)return;
+// Raycast tap detection — called from pointerup for reliable mobile support
+function handleAxisTap(sx,sy){
+  if(!isAxisView||highlightYear!==2026)return;
   var rc=new THREE.Raycaster();
   var rect=cv.getBoundingClientRect();
-  var mx=((e.clientX-rect.left)/rect.width)*2-1;
-  var my=-((e.clientY-rect.top)/rect.height)*2+1;
+  var mx=((sx-rect.left)/rect.width)*2-1;
+  var my=-((sy-rect.top)/rect.height)*2+1;
   rc.setFromCamera(new THREE.Vector2(mx,my),activeCam);
-  var meshes=evtHitTargets.map(function(h){return h.mesh});
-  var hits=rc.intersectObjects(meshes);
-  if(hits.length>0){
-    var hit=hits[0].object;
-    for(var i=0;i<evtHitTargets.length;i++){
-      if(evtHitTargets[i].mesh===hit){showEvtPopup(evtHitTargets[i].evt,e.clientX,e.clientY);return}
+  // Check event markers first
+  if(evtHitTargets.length){
+    var meshes=evtHitTargets.map(function(h){return h.mesh});
+    var hits=rc.intersectObjects(meshes);
+    if(hits.length>0){
+      var hit=hits[0].object;
+      for(var i=0;i<evtHitTargets.length;i++){
+        if(evtHitTargets[i].mesh===hit){showEvtPopup(evtHitTargets[i].evt,sx,sy);return}
+      }
+    }
+  }
+  // Then check month labels
+  if(monthLabelHits.length){
+    var mMeshes=monthLabelHits.map(function(h){return h.mesh});
+    var mHits=rc.intersectObjects(mMeshes);
+    if(mHits.length>0){
+      var mHit=mHits[0].object;
+      for(var j=0;j<monthLabelHits.length;j++){
+        if(monthLabelHits[j].mesh===mHit){hideEvtPopup();openMonthView(monthLabelHits[j].month);return}
+      }
     }
   }
   hideEvtPopup();
-});
+}
 
 // ── Monthly view ──
 var monthOverlay=document.getElementById("monthOverlay");
@@ -1127,30 +1141,7 @@ buildLabels=function(){
 // Rebuild to register the hits
 buildLabels();
 
-// Click handler for month labels in axis view
-cv.addEventListener("click",function(e){
-  if(circDragMoved)return;
-  if(!isAxisView||highlightYear!==2026||!monthLabelHits.length)return;
-  // Skip if event popup click was handled
-  if(evtPopup.classList.contains("show"))return;
-  var rc=new THREE.Raycaster();
-  var rect=cv.getBoundingClientRect();
-  var mx=((e.clientX-rect.left)/rect.width)*2-1;
-  var my=-((e.clientY-rect.top)/rect.height)*2+1;
-  rc.setFromCamera(new THREE.Vector2(mx,my),activeCam);
-  var meshes=monthLabelHits.map(function(h){return h.mesh});
-  var hits=rc.intersectObjects(meshes);
-  if(hits.length>0){
-    var hit=hits[0].object;
-    for(var i=0;i<monthLabelHits.length;i++){
-      if(monthLabelHits[i].mesh===hit){
-        hideEvtPopup();
-        openMonthView(monthLabelHits[i].month);
-        return;
-      }
-    }
-  }
-});
+// (Event/month tap detection is handled in pointerup via handleAxisTap)
 
 // ═══════════════ RESIZE & ANIMATION ═══════════════
 
