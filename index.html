@@ -658,6 +658,7 @@ var clipDrag=false,clipDragStartSX=0,clipDragStartSY=0,clipDragStartVal=0;
 var axDirX=0,axDirY=0; // screen-space direction of helix axis
 var circDrag=false; // circular drag in axis view
 var circDragMoved=false; // track if pointer moved during axis drag
+var circDragPending=null; // deferred drag start (so taps on events work)
 var ptrs=new Map();
 var tapStart=null;
 
@@ -667,16 +668,13 @@ cv.addEventListener("pointerdown",function(e){
   tapStart={x:e.clientX,y:e.clientY,t:Date.now(),id:e.pointerId};
   if(ptrs.size===1){
     if(isAxisView){
-      // Axis view: circular drag — any touch/click starts it
-      circDrag=true;circDragMoved=false;cv.style.cursor="grabbing";
-      // Compute angle from pointer to center of coil on screen
+      // Axis view: defer circular drag until pointer actually moves (so taps on event dots work)
+      circDragMoved=false;
       var yi=YEARS.indexOf(highlightYear);if(yi<0)yi=NUM_YEARS-1;
       var yearZ=-(yi+0.5)*PITCH;
       var cp=new THREE.Vector3(0,0,yearZ);cp.project(activeCam);
-      circDrag={cx:(cp.x+1)/2*cv.clientWidth,cy:(-cp.y+1)/2*cv.clientHeight};
-      var ang=Math.atan2(e.clientY-circDrag.cy,e.clientX-circDrag.cx);
-      var clipC=axisAngToClip(ang,yi);
-      updateClipFromValue(clipC);
+      circDragPending={cx:(cp.x+1)/2*cv.clientWidth,cy:(-cp.y+1)/2*cv.clientHeight,sx:e.clientX,sy:e.clientY};
+      circDrag=false;
       return;
     }
     // Check if clicking near the clip handle (3D drag) — elevation/isometric only
@@ -709,6 +707,13 @@ cv.addEventListener("pointerdown",function(e){
 cv.addEventListener("pointermove",function(e){
   if(!ptrs.has(e.pointerId))return;
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  // Promote pending axis drag once finger moves beyond threshold
+  if(circDragPending&&!circDrag){
+    var pd=Math.hypot(e.clientX-circDragPending.sx,e.clientY-circDragPending.sy);
+    if(pd>8){
+      circDrag=circDragPending;circDragPending=null;cv.style.cursor="grabbing";
+    }else{return}
+  }
   if(circDrag){
     // Axis view: circular drag
     circDragMoved=true;
@@ -742,6 +747,7 @@ cv.addEventListener("pointerup",function(e){
   }
   tapStart=null;
   ptrs.delete(e.pointerId);
+  if(circDragPending){circDragPending=null} // was a tap, not a drag — let click handlers fire
   if(circDrag){circDrag=false;cv.style.cursor="";if(circDragMoved)setTimeout(function(){circDragMoved=false},0);return}
   if(clipDrag){clipDrag=false;cv.style.cursor="";return}
   if(!ptrs.size){orb=false;pin=false;orbP=false}
@@ -749,7 +755,7 @@ cv.addEventListener("pointerup",function(e){
 });
 
 cv.addEventListener("pointercancel",function(e){
-  ptrs.delete(e.pointerId);
+  ptrs.delete(e.pointerId);circDragPending=null;
   if(!ptrs.size){orb=false;pin=false;orbP=false}
 });
 
